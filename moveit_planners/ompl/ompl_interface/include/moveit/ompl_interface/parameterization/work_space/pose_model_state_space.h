@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ioan Sucan, Shi Shenglei */
 
 #pragma once
 
@@ -108,7 +108,6 @@ public:
 
   void setPlanningVolume(double minX, double maxX, double minY, double maxY, double minZ, double maxZ) override;
   void copyToOMPLState(ompl::base::State* state, const moveit::core::RobotState& rstate) const override;
-  void sanityChecks() const override;
 
   const std::string& getParameterizationType() const override
   {
@@ -119,7 +118,7 @@ private:
   struct PoseComponent
   {
     PoseComponent(const moveit::core::JointModelGroup* subgroup,
-                  const moveit::core::JointModelGroup::KinematicsSolver& k);
+                  const moveit::core::JointModelGroup::KinematicsSolver& k, const ompl::base::StateSpace* pspace);
 
     bool computeStateFK(StateType* full_state, unsigned int idx) const;
     bool computeStateIK(StateType* full_state, unsigned int idx) const;
@@ -133,6 +132,7 @@ private:
     kinematics::KinematicsBasePtr kinematics_solver_;
     std::vector<unsigned int> bijection_;
     ompl::base::StateSpacePtr state_space_;
+    const ompl::base::StateSpace* pspace_;
     std::vector<std::string> fk_link_;
   };
 

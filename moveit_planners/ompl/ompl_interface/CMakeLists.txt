@@ -1,5 +1,7 @@
 set(MOVEIT_LIB_NAME moveit_ompl_interface)
 
+add_definitions(-DBT_USE_DOUBLE_PRECISION)
+
 add_library(${MOVEIT_LIB_NAME}
   src/ompl_interface.cpp
   src/planning_context_manager.cpp
@@ -12,6 +14,7 @@ add_library(${MOVEIT_LIB_NAME}
   src/parameterization/work_space/pose_model_state_space_factory.cpp
   src/detail/threadsafe_state_storage.cpp
   src/detail/state_validity_checker.cpp
+  src/detail/safety_certificate.cpp
   src/detail/projection_evaluators.cpp
   src/detail/goal_union.cpp
   src/detail/constraints_library.cpp

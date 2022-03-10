@@ -24,6 +24,8 @@ moveit_build_options()
 
 find_package(Eigen3 REQUIRED)
 
+add_definitions(-DBT_USE_DOUBLE_PRECISION)
+
 generate_dynamic_reconfigure_options(
   "planning_scene_monitor/cfg/PlanningSceneMonitorDynamicReconfigure.cfg"
   "trajectory_execution_manager/cfg/TrajectoryExecutionDynamicReconfigure.cfg"

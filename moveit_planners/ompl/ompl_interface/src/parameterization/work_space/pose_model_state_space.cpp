@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ioan Sucan, Shi Shenglei */
 
 #include <moveit/ompl_interface/parameterization/work_space/pose_model_state_space.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
@@ -53,12 +53,12 @@ ompl_interface::PoseModelStateSpace::PoseModelStateSpace(const ModelBasedStateSp
   jump_factor_ = 3;  // \todo make this a param
 
   if (spec.joint_model_group_->getGroupKinematics().first)
-    poses_.emplace_back(spec.joint_model_group_, spec.joint_model_group_->getGroupKinematics().first);
+    poses_.emplace_back(spec.joint_model_group_, spec.joint_model_group_->getGroupKinematics().first, this);
   else if (!spec.joint_model_group_->getGroupKinematics().second.empty())
   {
     const moveit::core::JointModelGroup::KinematicsSolverMap& m = spec.joint_model_group_->getGroupKinematics().second;
     for (const auto& it : m)
-      poses_.emplace_back(it.first, it.second);
+      poses_.emplace_back(it.first, it.second, this);
   }
   if (poses_.empty())
     ROS_ERROR_NAMED(LOGNAME, "No kinematics solvers specified. Unable to construct a "
@@ -90,12 +90,11 @@ double ompl_interface::PoseModelStateSpace::getMaximumExtent() const
 ompl::base::State* ompl_interface::PoseModelStateSpace::allocState() const
 {
   auto* state = new StateType();
-  state->values =
-      new double[variable_count_];  // need to allocate this here since ModelBasedStateSpace::allocState() is not called
+  allocStateComponents(state);
   state->poses = new ompl::base::SE3StateSpace::StateType*[poses_.size()];
   for (std::size_t i = 0; i < poses_.size(); ++i)
     state->poses[i] = poses_[i].state_space_->allocState()->as<ompl::base::SE3StateSpace::StateType>();
-  return state;
+  return static_cast<ompl::base::State*>(state);
 }
 
 void ompl_interface::PoseModelStateSpace::freeState(ompl::base::State* state) const
@@ -103,7 +102,12 @@ void ompl_interface::PoseModelStateSpace::freeState(ompl::base::State* state) co
   for (std::size_t i = 0; i < poses_.size(); ++i)
     poses_[i].state_space_->freeState(state->as<StateType>()->poses[i]);
   delete[] state->as<StateType>()->poses;
-  ModelBasedStateSpace::freeState(state);
+
+  auto* cstate = static_cast<ompl::base::CompoundState*>(state);
+  for (unsigned int i = 0; i < componentCount_; ++i)
+    components_[i]->freeState(cstate->components[i]);
+  delete[] cstate->components;
+  delete cstate;
 }
 
 void ompl_interface::PoseModelStateSpace::copyState(ompl::base::State* destination,
@@ -117,12 +121,6 @@ void ompl_interface::PoseModelStateSpace::copyState(ompl::base::State* destinati
 
   // compute additional stuff if needed
   computeStateK(destination);
-}
-
-void ompl_interface::PoseModelStateSpace::sanityChecks() const
-{
-  ModelBasedStateSpace::sanityChecks(std::numeric_limits<double>::epsilon(), std::numeric_limits<float>::epsilon(),
-                                     ~ompl::base::StateSpace::STATESPACE_TRIANGLE_INEQUALITY);
 }
 
 void ompl_interface::PoseModelStateSpace::interpolate(const ompl::base::State* from, const ompl::base::State* to,
@@ -145,12 +143,12 @@ void ompl_interface::PoseModelStateSpace::interpolate(const ompl::base::State* f
   state->as<StateType>()->setPoseComputed(true);
 
   /*
-  std::cout << "*********** interpolate\n";
-  printState(from, std::cout);
-  printState(to, std::cout);
-  printState(state, std::cout);
-  std::cout << "\n\n";
-  */
+     std::cout << "*********** interpolate\n";
+     printState(from, std::cout);
+     printState(to, std::cout);
+     printState(state, std::cout);
+     std::cout << "\n\n";
+     */
 
   // after interpolation we cannot be sure about the joint values (we use them as seed only)
   // so we recompute IK if needed
@@ -182,8 +180,9 @@ void ompl_interface::PoseModelStateSpace::setPlanningVolume(double minX, double 
 }
 
 ompl_interface::PoseModelStateSpace::PoseComponent::PoseComponent(
-    const moveit::core::JointModelGroup* subgroup, const moveit::core::JointModelGroup::KinematicsSolver& k)
-  : subgroup_(subgroup), kinematics_solver_(k.allocator_(subgroup)), bijection_(k.bijection_)
+    const moveit::core::JointModelGroup* subgroup, const moveit::core::JointModelGroup::KinematicsSolver& k,
+    const ompl::base::StateSpace* pspace)
+  : subgroup_(subgroup), kinematics_solver_(k.allocator_(subgroup)), bijection_(k.bijection_), pspace_(pspace)
 {
   state_space_ = std::make_shared<ompl::base::SE3StateSpace>();
   state_space_->setName(subgroup_->getName() + "_Workspace");
@@ -196,8 +195,19 @@ bool ompl_interface::PoseModelStateSpace::PoseComponent::computeStateFK(StateTyp
 {
   // read the values from the joint state, in the order expected by the kinematics solver
   std::vector<double> values(bijection_.size());
-  for (unsigned int i = 0; i < bijection_.size(); ++i)
-    values[i] = full_state->values[bijection_[i]];
+  if (pspace_->getSubspaceCount() == 1u && pspace_->as<ompl::base::CompoundStateSpace>()->getSubspace(0)->getType() ==
+                                               ompl::base::StateSpaceType::STATE_SPACE_REAL_VECTOR)
+  {
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      values[i] = full_state->as<ompl::base::RealVectorStateSpace::StateType>(0)->values[bijection_[i]];
+  }
+  else
+  {
+    std::vector<double> reals;
+    pspace_->copyToReals(reals, full_state);
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      values[i] = reals[bijection_[i]];
+  }
 
   // compute forward kinematics for the link of interest
   std::vector<geometry_msgs::Pose> poses;
@@ -220,15 +230,26 @@ bool ompl_interface::PoseModelStateSpace::PoseComponent::computeStateIK(StateTyp
 {
   // read the values from the joint state, in the order expected by the kinematics solver; use these as the seed
   std::vector<double> seed_values(bijection_.size());
-  for (std::size_t i = 0; i < bijection_.size(); ++i)
-    seed_values[i] = full_state->values[bijection_[i]];
+  std::vector<double> reals;
+  if (pspace_->getSubspaceCount() == 1u && pspace_->as<ompl::base::CompoundStateSpace>()->getSubspace(0)->getType() ==
+                                               ompl::base::StateSpaceType::STATE_SPACE_REAL_VECTOR)
+  {
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      seed_values[i] = full_state->as<ompl::base::RealVectorStateSpace::StateType>(0)->values[bijection_[i]];
+  }
+  else
+  {
+    pspace_->copyToReals(reals, full_state);
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      seed_values[i] = reals[bijection_[i]];
+  }
 
   /*
-  std::cout << "seed: ";
-  for (std::size_t i = 0 ; i < seed_values.size() ; ++i)
-    std::cout << seed_values[i] << " ";
-  std::cout << std::endl;
-  */
+     std::cout << "seed: ";
+     for (std::size_t i = 0 ; i < seed_values.size() ; ++i)
+     std::cout << seed_values[i] << " ";
+     std::cout << std::endl;
+     */
 
   // construct the pose
   geometry_msgs::Pose pose;
@@ -253,8 +274,18 @@ bool ompl_interface::PoseModelStateSpace::PoseComponent::computeStateIK(StateTyp
       return false;
   }
 
-  for (std::size_t i = 0; i < bijection_.size(); ++i)
-    full_state->values[bijection_[i]] = solution[i];
+  if (pspace_->getSubspaceCount() == 1u && pspace_->as<ompl::base::CompoundStateSpace>()->getSubspace(0)->getType() ==
+                                               ompl::base::StateSpaceType::STATE_SPACE_REAL_VECTOR)
+  {
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      full_state->as<ompl::base::RealVectorStateSpace::StateType>(0)->values[bijection_[i]] = solution[i];
+  }
+  else
+  {
+    for (unsigned int i = 0; i < bijection_.size(); ++i)
+      reals[bijection_[i]] = solution[i];
+    pspace_->copyFromReals(full_state, reals);
+  }
 
   return true;
 }
@@ -350,7 +381,7 @@ void ompl_interface::PoseModelStateSpace::copyToOMPLState(ompl::base::State* sta
   state->as<StateType>()->setPoseComputed(false);
   computeStateFK(state);
   /*
-  std::cout << "COPY STATE IN:\n";
-  printState(state, std::cout);
-  std::cout << "---------- COPY STATE IN\n"; */
+     std::cout << "COPY STATE IN:\n";
+     printState(state, std::cout);
+     std::cout << "---------- COPY STATE IN\n"; */
 }

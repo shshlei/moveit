@@ -94,6 +94,8 @@ void ompl_interface::ProjectionEvaluatorJointValue::defaultCellSizes()
 void ompl_interface::ProjectionEvaluatorJointValue::project(const ompl::base::State* state,
                                                             OMPLProjection projection) const
 {
+  std::vector<double> reals;
+  space_->copyToReals(reals, state);
   for (std::size_t i = 0; i < variables_.size(); ++i)
-    projection(i) = state->as<ModelBasedStateSpace::StateType>()->values[variables_[i]];
+    projection(i) = reals[variables_[i]];
 }
