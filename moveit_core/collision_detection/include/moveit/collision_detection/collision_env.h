@@ -42,6 +42,7 @@
 #include <moveit_msgs/LinkPadding.h>
 #include <moveit_msgs/LinkScale.h>
 #include <moveit/collision_detection/world.h>
+#include <moveit/collision_detection/bvh_manager.h>
 
 namespace collision_detection
 {
@@ -157,9 +158,9 @@ public:
                                    const moveit::core::RobotState& state2) const = 0;
 
   /** \brief The distance to self-collision given the robot is at state \e state.
-      @param req A DistanceRequest object that encapsulates the distance request
-      @param res A DistanceResult object that encapsulates the distance result
-      @param state The state of this robot to consider */
+    @param req A DistanceRequest object that encapsulates the distance request
+    @param res A DistanceResult object that encapsulates the distance result
+    @param state The state of this robot to consider */
   virtual void distanceSelf(const DistanceRequest& req, DistanceResult& res,
                             const moveit::core::RobotState& state) const = 0;
 
@@ -175,7 +176,7 @@ public:
   }
 
   /** \brief The distance to self-collision given the robot is at state \e state, ignoring
-      the distances between links that are allowed to always collide (as specified by \e acm) */
+    the distances between links that are allowed to always collide (as specified by \e acm) */
   inline double distanceSelf(const moveit::core::RobotState& state, const AllowedCollisionMatrix& acm) const
   {
     DistanceRequest req;
@@ -302,13 +303,59 @@ public:
   /** @brief Get the link scaling as a vector of messages*/
   void getScale(std::vector<moveit_msgs::LinkScale>& scale) const;
 
+  void setSafetyDistance(double safety_distance)
+  {
+    safety_distance_ = safety_distance;
+    if (safety_distance_ < 0.0)
+    {
+      ROS_WARN_NAMED("collision_detection", "Safety distance threshold %.5f is negative, set it to zero",
+                     safety_distance_);
+      safety_distance_ = 0.0;
+    }
+  }
+
+  double getSafetyDistance() const
+  {
+    return safety_distance_;
+  }
+
+  virtual void setContactDistanceThreshold(double contact_distance)
+  {
+    contact_distance_ = contact_distance;
+    if (contact_distance_ < 0.0)
+    {
+      ROS_WARN_NAMED("collision_detection", "Contact distance threshold %.5f is negative, set it to zero",
+                     contact_distance_);
+      contact_distance_ = 0.0;
+    }
+  }
+
+  double getContactDistanceThreshold() const
+  {
+    return contact_distance_;
+  }
+
+  void setNegativeDistanceThreshold(double negative_distance)
+  {
+    negative_distance_ = negative_distance;
+  }
+
+  double getNegativeDistanceThreshold() const
+  {
+    return negative_distance_;
+  }
+
+  virtual const std::string getCollisionName() const = 0;
+
+  virtual const BVHManagerConstPtr getCollisionBVHManager() const = 0;
+
 protected:
   /** @brief When the scale or padding is changed for a set of links by any of the functions in this class,
-     updatedPaddingOrScaling() function is called.
-      This function has an empty default implementation. The intention is to override this function in a derived class
-     to allow for updating
-      additional structures that may need such updating when link scale or padding changes.
-      @param links the names of the links whose padding or scaling were updated */
+    updatedPaddingOrScaling() function is called.
+    This function has an empty default implementation. The intention is to override this function in a derived class
+    to allow for updating
+    additional structures that may need such updating when link scale or padding changes.
+    @param links the names of the links whose padding or scaling were updated */
   virtual void updatedPaddingOrScaling(const std::vector<std::string>& links);
 
   /** @brief The kinematic model corresponding to this collision model*/
@@ -319,6 +366,12 @@ protected:
 
   /** @brief The internally maintained map (from link names to scaling)*/
   std::map<std::string, double> link_scale_;
+
+  double safety_distance_{ 0.0 };
+
+  double contact_distance_{ 0.0 };
+
+  double negative_distance_{ 1.0 };
 
 private:
   WorldPtr world_;             // The world always valid, never nullptr.

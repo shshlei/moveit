@@ -51,6 +51,11 @@ public:
                        double scale = 1.0);
   CollisionEnvAllValid(const CollisionEnv& other, const WorldPtr& world);
 
+  void checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
+                          const moveit::core::RobotState& state) const override;
+  void checkSelfCollision(const CollisionRequest& req, CollisionResult& res, const moveit::core::RobotState& state,
+                          const AllowedCollisionMatrix& acm) const override;
+
   void checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
                            const moveit::core::RobotState& state) const override;
   void checkRobotCollision(const CollisionRequest& req, CollisionResult& res, const moveit::core::RobotState& state,
@@ -65,12 +70,11 @@ public:
   void distanceRobot(const DistanceRequest& req, DistanceResult& res,
                      const moveit::core::RobotState& state) const override;
 
-  void checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
-                          const moveit::core::RobotState& state) const override;
-  void checkSelfCollision(const CollisionRequest& req, CollisionResult& res, const moveit::core::RobotState& state,
-                          const AllowedCollisionMatrix& acm) const override;
-
   void distanceSelf(const DistanceRequest& req, DistanceResult& res,
                     const moveit::core::RobotState& state) const override;
+
+  const std::string getCollisionName() const override;
+
+  const BVHManagerConstPtr getCollisionBVHManager() const override;
 };
 }  // namespace collision_detection

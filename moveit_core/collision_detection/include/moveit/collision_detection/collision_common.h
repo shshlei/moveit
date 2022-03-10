@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ioan Sucan, Shi Shenglei */
 
 #pragma once
 
@@ -69,6 +69,14 @@ enum Type
 /** \brief The types of bodies that are considered for collision */
 using BodyType = BodyTypes::Type;
 
+enum class ContinuousCollisionType
+{
+  CCTYPE_NONE,
+  CCTYPE_TIME0,
+  CCTYPE_TIME1,
+  CCTYPE_BETWEEN
+};
+
 /** \brief Definition of a contact point */
 struct Contact
 {
@@ -103,6 +111,53 @@ struct Contact
 
   /** \brief The two nearest points connecting the two bodies */
   Eigen::Vector3d nearest_points[2];
+
+  Eigen::Vector3d nearest_points_local[2];
+
+  Eigen::Vector3d nearest_points_local2[2];
+
+  int shape_id[2];
+
+  Eigen::Isometry3d transform[2];
+
+  double cc_time[2];
+
+  std::array<ContinuousCollisionType, 2> cc_type;
+
+  Eigen::Isometry3d cc_transform[2];
+
+  Contact()
+  {
+    clear();
+  }
+
+  void clear()
+  {
+    depth = std::numeric_limits<double>::max();
+    pos.setZero();
+    normal.setZero();
+    body_name_1 = "";
+    body_name_2 = "";
+    body_type_1 = BodyType::WORLD_OBJECT;
+    body_type_2 = BodyType::WORLD_OBJECT;
+    percent_interpolation = -1.0;
+    nearest_points[0].setZero();
+    nearest_points[1].setZero();
+    nearest_points_local[0].setZero();
+    nearest_points_local[1].setZero();
+    nearest_points_local2[0].setZero();
+    nearest_points_local2[1].setZero();
+    transform[0] = Eigen::Isometry3d::Identity();
+    transform[1] = Eigen::Isometry3d::Identity();
+    shape_id[0] = -1;
+    shape_id[1] = -1;
+    cc_time[0] = -1;
+    cc_time[1] = -1;
+    cc_type[0] = ContinuousCollisionType::CCTYPE_NONE;
+    cc_type[1] = ContinuousCollisionType::CCTYPE_NONE;
+    cc_transform[0] = Eigen::Isometry3d::Identity();
+    cc_transform[1] = Eigen::Isometry3d::Identity();
+  }
 };
 
 /** \brief When collision costs are computed, this structure contains information about the partial cost incurred in a
@@ -116,7 +171,7 @@ struct CostSource
   boost::array<double, 3> aabb_max;
 
   /// The partial cost (the probability of existance for the object there is a collision with)
-  double cost;
+  double cost{ std::numeric_limits<double>::max() };
 
   /// Get the volume of the AABB around the cost source
   double getVolume() const
@@ -184,7 +239,8 @@ struct CollisionResult
 struct CollisionRequest
 {
   CollisionRequest()
-    : distance(false)
+    : group_name("")
+    , distance(false)
     , cost(false)
     , contacts(false)
     , max_contacts(1)
@@ -193,6 +249,7 @@ struct CollisionRequest
     , verbose(false)
   {
   }
+
   virtual ~CollisionRequest()
   {
   }
@@ -242,11 +299,11 @@ using DistanceRequestType = DistanceRequestTypes::DistanceRequestType;
 struct DistanceRequest
 {
   DistanceRequest()
-    : enable_nearest_points(false)
+    : group_name("")
+    , enable_nearest_points(false)
     , enable_signed_distance(false)
     , type(DistanceRequestType::GLOBAL)
     , max_contacts_per_body(1)
-    , active_components_only(nullptr)
     , acm(nullptr)
     , distance_threshold(std::numeric_limits<double>::max())
     , verbose(false)
@@ -254,14 +311,20 @@ struct DistanceRequest
   {
   }
 
-  /// Compute \e active_components_only_ based on \e req_
+  /// The group name
+  std::string group_name;
+
+  /// Compute \e active_components_only_ based on \e req
   void enableGroup(const moveit::core::RobotModelConstPtr& robot_model)
   {
     if (robot_model->hasJointModelGroup(group_name))
-      active_components_only = &robot_model->getJointModelGroup(group_name)->getUpdatedLinkModelsSet();
+      active_components_only = robot_model->getJointModelGroup(group_name)->getUpdatedLinkModelsWithGeometryNames();
     else
-      active_components_only = nullptr;
+      active_components_only.clear();
   }
+
+  /// The set of active components to check
+  std::vector<std::string> active_components_only;
 
   /// Indicate if nearest point information should be calculated
   bool enable_nearest_points;
@@ -276,12 +339,6 @@ struct DistanceRequest
 
   /// Maximum number of contacts to store for bodies (multiple bodies may be within distance threshold)
   std::size_t max_contacts_per_body;
-
-  /// The group name
-  std::string group_name;
-
-  /// The set of active components to check
-  const std::set<const moveit::core::LinkModel*>* active_components_only;
 
   /// The allowed collision matrix used to filter checks
   const AllowedCollisionMatrix* acm;
@@ -312,6 +369,10 @@ struct DistanceResultsData  // NOLINT(readability-identifier-naming) - suppress 
   /// The nearest points
   Eigen::Vector3d nearest_points[2];
 
+  Eigen::Vector3d nearest_points_local[2];
+
+  Eigen::Vector3d nearest_points_local2[2];
+
   /// The object link names
   std::string link_names[2];
 
@@ -320,10 +381,14 @@ struct DistanceResultsData  // NOLINT(readability-identifier-naming) - suppress 
 
   /** Normalized vector connecting closest points (from link_names[0] to link_names[1])
 
-      Usually, when checking convex to convex, the normal is connecting closest points.
-      However, FCL in case of non-convex to non-convex or convex to non-convex returns
-      the contact normal for one of the two triangles that are in contact. */
+    Usually, when checking convex to convex, the normal is connecting closest points.
+    However, FCL in case of non-convex to non-convex or convex to non-convex returns
+    the contact normal for one of the two triangles that are in contact. */
   Eigen::Vector3d normal;
+
+  int shape_id[2];
+
+  Eigen::Isometry3d transform[2];
 
   /// Clear structure data
   void clear()
@@ -331,11 +396,19 @@ struct DistanceResultsData  // NOLINT(readability-identifier-naming) - suppress 
     distance = std::numeric_limits<double>::max();
     nearest_points[0].setZero();
     nearest_points[1].setZero();
+    nearest_points_local[0].setZero();
+    nearest_points_local[1].setZero();
+    nearest_points_local2[0].setZero();
+    nearest_points_local2[1].setZero();
     body_types[0] = BodyType::WORLD_OBJECT;
     body_types[1] = BodyType::WORLD_OBJECT;
     link_names[0] = "";
     link_names[1] = "";
     normal.setZero();
+    shape_id[0] = -1;
+    shape_id[1] = -1;
+    transform[0] = Eigen::Isometry3d::Identity();
+    transform[1] = Eigen::Isometry3d::Identity();
   }
 
   /// Compare if the distance is less than another
@@ -377,5 +450,105 @@ struct DistanceResult
     minimum_distance.clear();
     distances.clear();
   }
+};
+
+enum class CollisionObjectType
+{
+  USE_SHAPE_TYPE = 0, /**< @brief Infer the type from the type specified in the shapes::Shape class */
+
+  // all of the following convert the meshes to custom collision objects
+  CONVEX_HULL = 1,  /**< @brief Use the mesh in shapes::Shape but make it a convex hulls collision object (if not convex
+                      it will be converted) */
+  MULTI_SPHERE = 2, /**< @brief Use the mesh and represent it by multiple spheres collision object */
+  SDF = 3           /**< @brief Use the mesh and rpresent it by a signed distance fields collision object */
+};
+
+/** \brief Bundles the data for a collision query */
+struct ContactTestData
+{
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  ContactTestData(double safety_distance, double contact_distance, double negative_distance,
+                  const AllowedCollisionMatrix* acm, const CollisionRequest* req, CollisionResult* res)
+    : safety_distance(safety_distance)
+    , contact_distance(contact_distance)
+    , negative_distance(negative_distance)
+    , acm(acm)
+    , req(req)
+    , res(res)
+    , done(false)
+    , pair_done(false)
+  {
+  }
+
+  void enableGroup(const moveit::core::RobotModelConstPtr& robot_model)
+  {
+    if (robot_model->hasJointModelGroup(req->group_name))
+      active_components_only =
+          robot_model->getJointModelGroup(req->group_name)->getUpdatedLinkModelsWithGeometryNames();
+    else
+      active_components_only.clear();
+  }
+
+  /** \brief  If the collision request includes a group name, this set contains the pointers to the link models that
+   *  are considered for collision.
+   *
+   *  If the pointer is NULL, all collisions are considered. */
+  std::vector<std::string> active_components_only;
+
+  double safety_distance;
+
+  /** \brief If after a positive broadphase check the distance is below this threshold, a contact is added. */
+  double contact_distance;
+
+  double negative_distance;
+
+  /** \brief The user-specified collision matrix (may be NULL). */
+  const AllowedCollisionMatrix* acm;
+
+  const CollisionRequest* req;
+
+  CollisionResult* res;
+
+  /// Indicates if search is finished
+  bool done;
+
+  /// Indicates if search between a single pair is finished
+  bool pair_done;
+};
+
+/** \brief Data structure which is passed to the distance callback function of the collision manager. */
+struct DistanceTestData
+{
+  DistanceTestData(double safety_distance, double contact_distance, double negative_distance,
+                   const DistanceRequest* req, DistanceResult* res)
+    : safety_distance(safety_distance)
+    , contact_distance(contact_distance)
+    , negative_distance(negative_distance)
+    , req(req)
+    , res(res)
+    , done(false)
+  {
+  }
+
+  ~DistanceTestData()
+  {
+  }
+
+  double safety_distance;
+
+  /** \brief If after a positive broadphase check the distance is below this threshold, a contact is added. */
+  double contact_distance;
+
+  double negative_distance;
+
+  /** \brief Distance query request information. */
+  const DistanceRequest* req;
+
+  /** \brief Distance query results information. */
+  DistanceResult* res;
+
+  /** \brief Indicates if distance query is finished. */
+  bool done;
 };
 }  // namespace collision_detection

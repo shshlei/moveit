@@ -108,6 +108,7 @@ CollisionEnv::CollisionEnv(const CollisionEnv& other, const WorldPtr& world)
   link_padding_ = other.link_padding_;
   link_scale_ = other.link_scale_;
 }
+
 void CollisionEnv::setPadding(double padding)
 {
   if (!validatePadding(padding))
@@ -142,7 +143,8 @@ void CollisionEnv::setScale(double scale)
 
 void CollisionEnv::setLinkPadding(const std::string& link_name, double padding)
 {
-  validatePadding(padding);
+  if (!validatePadding(padding))
+    return;
   bool update = getLinkPadding(link_name) != padding;
   link_padding_[link_name] = padding;
   if (update)
@@ -166,7 +168,8 @@ void CollisionEnv::setLinkPadding(const std::map<std::string, double>& padding)
   std::vector<std::string> u;
   for (const auto& link_pad_pair : padding)
   {
-    validatePadding(link_pad_pair.second);
+    if (!validatePadding(link_pad_pair.second))
+      continue;
     bool update = getLinkPadding(link_pad_pair.first) != link_pad_pair.second;
     link_padding_[link_pad_pair.first] = link_pad_pair.second;
     if (update)
@@ -183,7 +186,8 @@ const std::map<std::string, double>& CollisionEnv::getLinkPadding() const
 
 void CollisionEnv::setLinkScale(const std::string& link_name, double scale)
 {
-  validateScale(scale);
+  if (!validateScale(scale))
+    return;
   bool update = getLinkScale(link_name) != scale;
   link_scale_[link_name] = scale;
   if (update)
@@ -207,6 +211,8 @@ void CollisionEnv::setLinkScale(const std::map<std::string, double>& scale)
   std::vector<std::string> u;
   for (const auto& link_scale_pair : scale)
   {
+    if (!validateScale(link_scale_pair.second))
+      continue;
     bool update = getLinkScale(link_scale_pair.first) != link_scale_pair.second;
     link_scale_[link_scale_pair.first] = link_scale_pair.second;
     if (update)
@@ -226,7 +232,8 @@ void CollisionEnv::setPadding(const std::vector<moveit_msgs::LinkPadding>& paddi
   std::vector<std::string> u;
   for (const auto& p : padding)
   {
-    validatePadding(p.padding);
+    if (!validatePadding(p.padding))
+      continue;
     bool update = getLinkPadding(p.link_name) != p.padding;
     link_padding_[p.link_name] = p.padding;
     if (update)
@@ -241,7 +248,8 @@ void CollisionEnv::setScale(const std::vector<moveit_msgs::LinkScale>& scale)
   std::vector<std::string> u;
   for (const auto& s : scale)
   {
-    validateScale(s.scale);
+    if (!validateScale(s.scale))
+      continue;
     bool update = getLinkScale(s.link_name) != s.scale;
     link_scale_[s.link_name] = s.scale;
     if (update)

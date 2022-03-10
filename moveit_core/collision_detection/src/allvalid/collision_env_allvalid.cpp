@@ -61,6 +61,23 @@ CollisionEnvAllValid::CollisionEnvAllValid(const CollisionEnv& other, const Worl
 {
 }
 
+void CollisionEnvAllValid::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
+                                              const moveit::core::RobotState& /*state*/) const
+{
+  res.collision = false;
+  if (req.verbose)
+    ROS_INFO_NAMED("collision_detection", "Using AllValid collision detection. No collision checking is performed.");
+}
+
+void CollisionEnvAllValid::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
+                                              const moveit::core::RobotState& /*state*/,
+                                              const AllowedCollisionMatrix& /*acm*/) const
+{
+  res.collision = false;
+  if (req.verbose)
+    ROS_INFO_NAMED("collision_detection", "Using AllValid collision detection. No collision checking is performed.");
+}
+
 void CollisionEnvAllValid::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
                                                const moveit::core::RobotState& /*state*/) const
 {
@@ -97,6 +114,12 @@ void CollisionEnvAllValid::checkRobotCollision(const CollisionRequest& req, Coll
     ROS_INFO_NAMED("collision_detection", "Using AllValid collision detection. No collision checking is performed.");
 }
 
+void CollisionEnvAllValid::distanceSelf(const DistanceRequest& /*req*/, DistanceResult& res,
+                                        const moveit::core::RobotState& /*state*/) const
+{
+  res.collision = false;
+}
+
 void CollisionEnvAllValid::distanceRobot(const DistanceRequest& /*req*/, DistanceResult& res,
                                          const moveit::core::RobotState& /*state*/) const
 {
@@ -105,36 +128,23 @@ void CollisionEnvAllValid::distanceRobot(const DistanceRequest& /*req*/, Distanc
 
 double CollisionEnvAllValid::distanceRobot(const moveit::core::RobotState& /*state*/) const
 {
-  return 0.0;
+  return std::numeric_limits<double>::max();
 }
 
 double CollisionEnvAllValid::distanceRobot(const moveit::core::RobotState& /*state*/,
                                            const AllowedCollisionMatrix& /*acm*/) const
 {
-  return 0.0;
+  return std::numeric_limits<double>::max();
 }
 
-void CollisionEnvAllValid::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
-                                              const moveit::core::RobotState& /*state*/) const
+const std::string CollisionEnvAllValid::getCollisionName() const
 {
-  res.collision = false;
-  if (req.verbose)
-    ROS_INFO_NAMED("collision_detection", "Using AllValid collision detection. No collision checking is performed.");
+  return NAME;
 }
 
-void CollisionEnvAllValid::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
-                                              const moveit::core::RobotState& /*state*/,
-                                              const AllowedCollisionMatrix& /*acm*/) const
+const BVHManagerConstPtr CollisionEnvAllValid::getCollisionBVHManager() const
 {
-  res.collision = false;
-  if (req.verbose)
-    ROS_INFO_NAMED("collision_detection", "Using AllValid collision detection. No collision checking is performed.");
-}
-
-void CollisionEnvAllValid::distanceSelf(const DistanceRequest& /*req*/, DistanceResult& res,
-                                        const moveit::core::RobotState& /*state*/) const
-{
-  res.collision = false;
+  return nullptr;
 }
 
 const std::string& CollisionDetectorAllocatorAllValid::getName() const

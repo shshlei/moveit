@@ -67,6 +67,7 @@
 
   <export>
     <moveit_core plugin="${prefix}/collision_detector_fcl_description.xml"/>
+    <moveit_core plugin="${prefix}/collision_detector_fcl_description_new.xml"/>
     <moveit_core plugin="${prefix}/collision_detector_bullet_description.xml"/>
   </export>
 </package>
