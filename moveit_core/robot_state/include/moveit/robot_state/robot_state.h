@@ -1571,6 +1571,25 @@ public:
     }
   }
 
+  void enforceBoundsRandom();
+  void enforceBoundsRandom(const JointModelGroup* joint_group);
+  void enforceBoundsRandom(const JointModel* joint);
+  void enforceBoundsRandom(random_numbers::RandomNumberGenerator& rng, const JointModel* joint)
+  {
+    enforcePositionBoundsRandom(rng, joint);
+    if (has_velocity_)
+      enforceVelocityBoundsRandom(rng, joint);
+  }
+  void enforcePositionBoundsRandom(const JointModel* joint);
+  void enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, const JointModel* joint)
+  {
+    if (joint->enforcePositionBoundsRandom(rng, position_ + joint->getFirstVariableIndex()))
+    {
+      markDirtyJointTransforms(joint);
+      updateMimicJoint(joint);
+    }
+  }
+
   /// Call harmonizePosition() for all joints / all joints in group / given joint
   void harmonizePositions();
   void harmonizePositions(const JointModelGroup* joint_group);
@@ -1584,6 +1603,12 @@ public:
   void enforceVelocityBounds(const JointModel* joint)
   {
     joint->enforceVelocityBounds(velocity_ + joint->getFirstVariableIndex());
+  }
+
+  void enforceVelocityBoundsRandom(const JointModel* joint);
+  void enforceVelocityBoundsRandom(random_numbers::RandomNumberGenerator& rng, const JointModel* joint)
+  {
+    joint->enforceVelocityBoundsRandom(rng, velocity_ + joint->getFirstVariableIndex());
   }
 
   bool satisfiesBounds(double margin = 0.0) const;

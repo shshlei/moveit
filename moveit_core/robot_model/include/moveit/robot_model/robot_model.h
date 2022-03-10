@@ -341,6 +341,14 @@ public:
     return enforcePositionBounds(state, active_joint_models_bounds_);
   }
   bool enforcePositionBounds(double* state, const JointBoundsVector& active_joint_bounds) const;
+
+  bool enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* state) const
+  {
+    return enforcePositionBoundsRandom(rng, state, active_joint_models_bounds_);
+  }
+  bool enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* state,
+                                   const JointBoundsVector& active_joint_bounds) const;
+
   bool satisfiesPositionBounds(const double* state, double margin = 0.0) const
   {
     return satisfiesPositionBounds(state, active_joint_models_bounds_, margin);

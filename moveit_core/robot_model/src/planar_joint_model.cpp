@@ -177,7 +177,7 @@ double PlanarJointModel::distance(const double* values1, const double* values2) 
 bool PlanarJointModel::satisfiesPositionBounds(const double* values, const Bounds& bounds, double margin) const
 {
   for (unsigned int i = 0; i < 3; ++i)
-    if (values[0] < bounds[0].min_position_ - margin || values[0] > bounds[0].max_position_ + margin)
+    if (values[i] < bounds[i].min_position_ - margin || values[i] > bounds[i].max_position_ + margin)
       return false;
   return true;
 }
@@ -208,6 +208,21 @@ bool PlanarJointModel::enforcePositionBounds(double* values, const Bounds& bound
     else if (values[i] > bounds[i].max_position_)
     {
       values[i] = bounds[i].max_position_;
+      result = true;
+    }
+  }
+  return result;
+}
+
+bool PlanarJointModel::enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                                   const Bounds& bounds) const
+{
+  bool result = normalizeRotation(values);
+  for (unsigned int i = 0; i < 2; ++i)
+  {
+    if (values[i] < bounds[i].min_position_ || values[i] > bounds[i].max_position_)
+    {
+      values[i] = rng.uniformReal(bounds[i].min_position_, bounds[i].max_position_);
       result = true;
     }
   }

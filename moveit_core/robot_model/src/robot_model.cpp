@@ -1287,6 +1287,20 @@ bool RobotModel::enforcePositionBounds(double* state, const JointBoundsVector& a
   return change;
 }
 
+bool RobotModel::enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* state,
+                                             const JointBoundsVector& active_joint_bounds) const
+{
+  assert(active_joint_bounds.size() == active_joint_model_vector_.size());
+  bool change = false;
+  for (std::size_t i = 0; i < active_joint_model_vector_.size(); ++i)
+    if (active_joint_model_vector_[i]->enforcePositionBoundsRandom(rng, state + active_joint_model_start_index_[i],
+                                                                   *active_joint_bounds[i]))
+      change = true;
+  if (change)
+    updateMimicJoints(state);
+  return change;
+}
+
 double RobotModel::distance(const double* state1, const double* state2) const
 {
   double d = 0.0;

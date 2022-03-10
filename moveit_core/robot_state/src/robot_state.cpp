@@ -854,6 +854,40 @@ void RobotState::enforceBounds(const JointModelGroup* joint_group)
     enforceBounds(joint);
 }
 
+void RobotState::enforceBoundsRandom()
+{
+  random_numbers::RandomNumberGenerator& rng = getRandomNumberGenerator();
+  const std::vector<const JointModel*>& jm = robot_model_->getActiveJointModels();
+  for (const JointModel* joint : jm)
+    enforceBoundsRandom(rng, joint);
+}
+
+void RobotState::enforceBoundsRandom(const JointModelGroup* joint_group)
+{
+  random_numbers::RandomNumberGenerator& rng = getRandomNumberGenerator();
+  const std::vector<const JointModel*>& jm = joint_group->getActiveJointModels();
+  for (const JointModel* joint : jm)
+    enforceBoundsRandom(rng, joint);
+}
+
+void RobotState::enforceBoundsRandom(const JointModel* joint)
+{
+  random_numbers::RandomNumberGenerator& rng = getRandomNumberGenerator();
+  enforceBoundsRandom(rng, joint);
+}
+
+void RobotState::enforcePositionBoundsRandom(const JointModel* joint)
+{
+  random_numbers::RandomNumberGenerator& rng = getRandomNumberGenerator();
+  enforcePositionBoundsRandom(rng, joint);
+}
+
+void RobotState::enforceVelocityBoundsRandom(const JointModel* joint)
+{
+  random_numbers::RandomNumberGenerator& rng = getRandomNumberGenerator();
+  enforceVelocityBoundsRandom(rng, joint);
+}
+
 void RobotState::harmonizePositions()
 {
   for (const JointModel* jm : robot_model_->getActiveJointModels())

@@ -106,6 +106,17 @@ bool PrismaticJointModel::enforcePositionBounds(double* values, const Bounds& bo
   return false;
 }
 
+bool PrismaticJointModel::enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                                      const Bounds& bounds) const
+{
+  if (values[0] < bounds[0].min_position_ || values[0] > bounds[0].max_position_)
+  {
+    values[0] = rng.uniformReal(bounds[0].min_position_, bounds[0].max_position_);
+    return true;
+  }
+  return false;
+}
+
 double PrismaticJointModel::distance(const double* values1, const double* values2) const
 {
   return fabs(values1[0] - values2[0]);

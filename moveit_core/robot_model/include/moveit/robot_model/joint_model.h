@@ -296,6 +296,20 @@ public:
       Return true if changes were made. */
   virtual bool enforcePositionBounds(double* values, const Bounds& other_bounds) const = 0;
 
+  /** \brief Force the specified values to be inside bounds and normalized. Quaternions are normalized, continuous
+     joints are made between -Pi and Pi.
+      Returns true if changes were made. */
+  bool enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values) const
+  {
+    return enforcePositionBoundsRandom(rng, values, variable_bounds_);
+  }
+
+  /** \brief Force the specified values to be inside bounds and normalized. Quaternions are normalized, continuous
+     joints are made between -Pi and Pi.
+      Return true if changes were made. */
+  virtual bool enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                           const Bounds& other_bounds) const = 0;
+
   /** Harmonize position of revolute joints, adding/subtracting multiples of 2*Pi to bring them back into bounds.
    *  Return true if changes were made. */
   virtual bool harmonizePosition(double* values, const Bounds& other_bounds) const;
@@ -321,6 +335,16 @@ public:
 
   /** \brief Force the specified velocities to be inside bounds. Return true if changes were made. */
   virtual bool enforceVelocityBounds(double* values, const Bounds& other_bounds) const;
+
+  /** \brief Force the specified velocities to be within bounds. Return true if changes were made. */
+  bool enforceVelocityBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values) const
+  {
+    return enforceVelocityBoundsRandom(rng, values, variable_bounds_);
+  }
+
+  /** \brief Force the specified velocities to be inside bounds. Return true if changes were made. */
+  virtual bool enforceVelocityBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                           const Bounds& other_bounds) const;
 
   /** \brief Get the bounds for a variable. Throw an exception if the variable was not found */
   const VariableBounds& getVariableBounds(const std::string& variable) const;

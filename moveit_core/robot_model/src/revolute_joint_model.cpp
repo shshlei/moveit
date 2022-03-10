@@ -219,6 +219,31 @@ bool RevoluteJointModel::enforcePositionBounds(double* values, const Bounds& bou
   return false;
 }
 
+bool RevoluteJointModel::enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                                     const Bounds& bounds) const
+{
+  if (continuous_)
+  {
+    double& v = values[0];
+    if (v <= -boost::math::constants::pi<double>() || v > boost::math::constants::pi<double>())
+    {
+      v = rng.uniformReal(-boost::math::constants::pi<double>(), boost::math::constants::pi<double>());
+      if (v == -boost::math::constants::pi<double>())
+        v = boost::math::constants::pi<double>();
+      return true;
+    }
+  }
+  else
+  {
+    if (values[0] < bounds[0].min_position_ || values[0] > bounds[0].max_position_)
+    {
+      values[0] = rng.uniformReal(bounds[0].min_position_, bounds[0].max_position_);
+      return true;
+    }
+  }
+  return false;
+}
+
 void RevoluteJointModel::computeTransform(const double* joint_values, Eigen::Isometry3d& transf) const
 {
   const double c = cos(joint_values[0]);

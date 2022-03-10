@@ -221,6 +221,21 @@ bool FloatingJointModel::enforcePositionBounds(double* values, const Bounds& bou
   return result;
 }
 
+bool FloatingJointModel::enforcePositionBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                                     const Bounds& bounds) const
+{
+  bool result = normalizeRotation(values);
+  for (unsigned int i = 0; i < 3; ++i)
+  {
+    if (values[i] < bounds[i].min_position_ || values[i] > bounds[i].max_position_)
+    {
+      values[i] = rng.uniformReal(bounds[i].min_position_, bounds[i].max_position_);
+      result = true;
+    }
+  }
+  return result;
+}
+
 void FloatingJointModel::computeTransform(const double* joint_values, Eigen::Isometry3d& transf) const
 {
   transf = Eigen::Isometry3d(

@@ -112,6 +112,21 @@ bool JointModel::enforceVelocityBounds(double* values, const Bounds& other_bound
   return change;
 }
 
+bool JointModel::enforceVelocityBoundsRandom(random_numbers::RandomNumberGenerator& rng, double* values,
+                                             const Bounds& other_bounds) const
+{
+  bool change = false;
+  for (std::size_t i = 0; i < other_bounds.size(); ++i)
+  {
+    if (other_bounds[i].max_velocity_ < values[i] || other_bounds[i].min_velocity_ > values[i])
+    {
+      values[i] = rng.uniformReal(other_bounds[i].min_velocity_, other_bounds[i].max_velocity_);
+      change = true;
+    }
+  }
+  return change;
+}
+
 bool JointModel::satisfiesVelocityBounds(const double* values, const Bounds& other_bounds, double margin) const
 {
   for (std::size_t i = 0; i < other_bounds.size(); ++i)
