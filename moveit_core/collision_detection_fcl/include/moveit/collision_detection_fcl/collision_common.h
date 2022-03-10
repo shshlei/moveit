@@ -140,12 +140,12 @@ struct CollisionGeometryData
 /** \brief Data structure which is passed to the collision callback function of the collision manager. */
 struct CollisionData
 {
-  CollisionData() : req_(nullptr), active_components_only_(nullptr), res_(nullptr), acm_(nullptr), done_(false)
+  CollisionData() : req_(nullptr), res_(nullptr), acm_(nullptr), done_(false)
   {
   }
 
   CollisionData(const CollisionRequest* req, CollisionResult* res, const AllowedCollisionMatrix* acm)
-    : req_(req), active_components_only_(nullptr), res_(res), acm_(acm), done_(false)
+    : req_(req), res_(res), acm_(acm), done_(false)
   {
   }
 
@@ -163,7 +163,7 @@ struct CollisionData
    *  are considered for collision.
    *
    *  If the pointer is NULL, all collisions are considered. */
-  const std::set<const moveit::core::LinkModel*>* active_components_only_;
+  std::vector<std::string> active_components_only;
 
   /** \brief The user-specified response location. */
   CollisionResult* res_;

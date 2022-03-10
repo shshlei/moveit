@@ -36,10 +36,7 @@
 
 #include <moveit/collision_detection_bullet/collision_env_bullet.h>
 #include <moveit/collision_detection_bullet/collision_detector_allocator_bullet.h>
-#include <moveit/collision_detection_bullet/bullet_integration/ros_bullet_utils.h>
-#include <moveit/collision_detection_bullet/bullet_integration/contact_checker_common.h>
 #include <functional>
-#include <bullet/btBulletCollisionCommon.h>
 
 namespace collision_detection
 {
@@ -103,62 +100,87 @@ CollisionEnvBullet::~CollisionEnvBullet()
 void CollisionEnvBullet::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
                                             const moveit::core::RobotState& state) const
 {
-  checkSelfCollisionHelper(req, res, state, nullptr);
+  checkCollisionHelper(req, res, state, nullptr, true);
 }
 
 void CollisionEnvBullet::checkSelfCollision(const CollisionRequest& req, CollisionResult& res,
                                             const moveit::core::RobotState& state,
                                             const AllowedCollisionMatrix& acm) const
 {
-  checkSelfCollisionHelper(req, res, state, &acm);
+  checkCollisionHelper(req, res, state, &acm, true);
 }
 
-void CollisionEnvBullet::checkSelfCollisionHelper(const CollisionRequest& req, CollisionResult& res,
-                                                  const moveit::core::RobotState& state,
-                                                  const AllowedCollisionMatrix* acm) const
+void CollisionEnvBullet::checkCollisionHelper(const CollisionRequest& req, CollisionResult& res,
+                                              const moveit::core::RobotState& state, const AllowedCollisionMatrix* acm,
+                                              bool self) const
 {
   std::lock_guard<std::mutex> guard(collision_env_mutex_);
 
   std::vector<collision_detection_bullet::CollisionObjectWrapperPtr> cows;
   addAttachedOjects(state, cows);
 
-  if (req.distance)
-  {
-    manager_->setContactDistanceThreshold(MAX_DISTANCE_MARGIN);
-  }
-
   for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : cows)
   {
     manager_->addCollisionObject(cow);
-    manager_->setCollisionObjectsTransform(
-        cow->getName(), state.getAttachedBody(cow->getName())->getGlobalCollisionBodyTransforms()[0]);
   }
 
   // updating link positions with the current robot state
-  for (const std::string& link : active_)
+  updateTransformsFromState(state, manager_);
+
+  ContactTestData cdata(safety_distance_, contact_distance_, negative_distance_, acm, &req, &res);
+  cdata.enableGroup(getRobotModel());
+
+  manager_->contactTest(cdata, self);
+
+  if (req.distance && !res.collision)
   {
-    manager_->setCollisionObjectsTransform(link, state.getCollisionBodyTransform(link, 0));
+    double d = 0.0;
+    if (self)
+      d = approximate_contact_distance_ > 0.0 ? approximate_contact_distance_ : 0.05;
+    else
+      d = approximate_contact_distance_robot_ > 0.0 ? approximate_contact_distance_robot_ : 0.5;
+    if (d <= contact_distance_)
+      d = 2.0 * contact_distance_;
+    while (res.contact_count == 0)
+    {
+      cdata.contact_distance = d;
+      manager_->setContactDistanceThreshold(d);
+      manager_->contactTest(cdata, self);
+      d *= 2.0;
+    }
+    assert(!res.collision);
   }
 
-  manager_->contactTest(res, req, acm, true);
+  if (res.distance > 0.0 && res.contact_count > 0)
+  {
+    if (self)
+      approximate_contact_distance_ = 0.5 * approximate_contact_distance_ + res.distance;
+    else
+      approximate_contact_distance_robot_ = 0.5 * approximate_contact_distance_robot_ + res.distance;
+  }
 
   for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : cows)
   {
     manager_->removeCollisionObject(cow->getName());
+  }
+
+  if (req.distance)
+  {
+    manager_->setContactDistanceThreshold(contact_distance_);
   }
 }
 
 void CollisionEnvBullet::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
                                              const moveit::core::RobotState& state) const
 {
-  checkRobotCollisionHelper(req, res, state, nullptr);
+  checkCollisionHelper(req, res, state, nullptr, false);
 }
 
 void CollisionEnvBullet::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
                                              const moveit::core::RobotState& state,
                                              const AllowedCollisionMatrix& acm) const
 {
-  checkRobotCollisionHelper(req, res, state, &acm);
+  checkCollisionHelper(req, res, state, &acm, false);
 }
 
 void CollisionEnvBullet::checkRobotCollision(const CollisionRequest& req, CollisionResult& res,
@@ -176,36 +198,6 @@ void CollisionEnvBullet::checkRobotCollision(const CollisionRequest& req, Collis
   checkRobotCollisionHelperCCD(req, res, state1, state2, &acm);
 }
 
-void CollisionEnvBullet::checkRobotCollisionHelper(const CollisionRequest& req, CollisionResult& res,
-                                                   const moveit::core::RobotState& state,
-                                                   const AllowedCollisionMatrix* acm) const
-{
-  std::lock_guard<std::mutex> guard(collision_env_mutex_);
-
-  if (req.distance)
-  {
-    manager_->setContactDistanceThreshold(MAX_DISTANCE_MARGIN);
-  }
-
-  std::vector<collision_detection_bullet::CollisionObjectWrapperPtr> attached_cows;
-  addAttachedOjects(state, attached_cows);
-  updateTransformsFromState(state, manager_);
-
-  for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : attached_cows)
-  {
-    manager_->addCollisionObject(cow);
-    manager_->setCollisionObjectsTransform(
-        cow->getName(), state.getAttachedBody(cow->getName())->getGlobalCollisionBodyTransforms()[0]);
-  }
-
-  manager_->contactTest(res, req, acm, false);
-
-  for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : attached_cows)
-  {
-    manager_->removeCollisionObject(cow->getName());
-  }
-}
-
 void CollisionEnvBullet::checkRobotCollisionHelperCCD(const CollisionRequest& req, CollisionResult& res,
                                                       const moveit::core::RobotState& state1,
                                                       const moveit::core::RobotState& state2,
@@ -219,87 +211,145 @@ void CollisionEnvBullet::checkRobotCollisionHelperCCD(const CollisionRequest& re
   for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : attached_cows)
   {
     manager_CCD_->addCollisionObject(cow);
-    manager_CCD_->setCastCollisionObjectsTransform(
-        cow->getName(), state1.getAttachedBody(cow->getName())->getGlobalCollisionBodyTransforms()[0],
-        state2.getAttachedBody(cow->getName())->getGlobalCollisionBodyTransforms()[0]);
+    manager_CCD_->setCastCollisionObjectsTransform(cow->getName(),
+                                                   state1.getAttachedBody(cow->getName())->getGlobalPose(),
+                                                   state2.getAttachedBody(cow->getName())->getGlobalPose());
   }
 
   for (const std::string& link : active_)
   {
-    manager_CCD_->setCastCollisionObjectsTransform(link, state1.getCollisionBodyTransform(link, 0),
-                                                   state2.getCollisionBodyTransform(link, 0));
+    manager_CCD_->setCastCollisionObjectsTransform(link, state1.getGlobalLinkTransform(link),
+                                                   state2.getGlobalLinkTransform(link));
   }
 
-  manager_CCD_->contactTest(res, req, acm, false);
+  ContactTestData cdata(safety_distance_, contact_distance_, negative_distance_, acm, &req, &res);
+  cdata.enableGroup(getRobotModel());
+
+  manager_CCD_->contactTest(cdata, false);
+
+  if (req.distance && !res.collision)
+  {
+    double d = approximate_contact_distance_robot_ > 0.0 ? approximate_contact_distance_robot_ : 0.5;
+    if (d <= contact_distance_)
+      d = 2.0 * contact_distance_;
+    while (res.contact_count == 0)
+    {
+      cdata.contact_distance = d;
+      manager_CCD_->setContactDistanceThreshold(d);
+      manager_CCD_->contactTest(cdata, false);
+      d *= 2.0;
+    }
+    assert(!res.collision);
+  }
+
+  if (res.distance > 0.0 && res.contact_count > 0)
+  {
+    approximate_contact_distance_robot_ = 0.5 * approximate_contact_distance_robot_ + res.distance;
+  }
 
   for (const collision_detection_bullet::CollisionObjectWrapperPtr& cow : attached_cows)
   {
     manager_CCD_->removeCollisionObject(cow->getName());
   }
-}
 
-void CollisionEnvBullet::distanceSelf(const DistanceRequest& /*req*/, DistanceResult& /*res*/,
-                                      const moveit::core::RobotState& /*state*/) const
-{
-  ROS_INFO_NAMED(LOGNAME, "distanceSelf is not implemented for Bullet.");
-}
-
-void CollisionEnvBullet::distanceRobot(const DistanceRequest& /*req*/, DistanceResult& /*res*/,
-                                       const moveit::core::RobotState& /*state*/) const
-{
-  ROS_INFO_NAMED(LOGNAME, "distanceRobot is not implemented for Bullet.");
-}
-
-void CollisionEnvBullet::addToManager(const World::Object* obj)
-{
-  std::vector<collision_detection_bullet::CollisionObjectType> collision_object_types;
-
-  for (const shapes::ShapeConstPtr& shape : obj->shapes_)
+  if (req.distance)
   {
-    if (shape->type == shapes::MESH)
-      collision_object_types.push_back(collision_detection_bullet::CollisionObjectType::CONVEX_HULL);
-    else
-      collision_object_types.push_back(collision_detection_bullet::CollisionObjectType::USE_SHAPE_TYPE);
+    manager_CCD_->setContactDistanceThreshold(contact_distance_);
+  }
+}
+
+void CollisionEnvBullet::distanceSelf(const DistanceRequest& req, DistanceResult& res,
+                                      const moveit::core::RobotState& state) const
+{
+  CollisionRequest creq;
+  CollisionResult cres;
+  creq.group_name = req.group_name;
+  creq.distance = true;
+  creq.contacts = true;
+
+  checkSelfCollision(creq, cres, state, *req.acm);
+
+  std::vector<Contact> contacts;
+  contacts.reserve(cres.contacts.size());
+  for (const auto& mv : cres.contacts)
+    std::copy(mv.second.begin(), mv.second.end(), std::back_inserter(contacts));
+
+  std::size_t min_index = 0;
+  for (std::size_t i = 1; i < contacts.size(); i++)
+  {
+    if (contacts[i].depth < contacts[min_index].depth)
+      min_index = i;
   }
 
-  auto cow = std::make_shared<collision_detection_bullet::CollisionObjectWrapper>(
-      obj->id_, collision_detection::BodyType::WORLD_OBJECT, obj->shapes_, obj->global_shape_poses_,
-      collision_object_types, false);
-
-  manager_->addCollisionObject(cow);
-  manager_CCD_->addCollisionObject(cow->clone());
+  res.clear();
+  res.collision = cres.collision;
+  res.minimum_distance.distance = contacts[min_index].depth;
+  res.minimum_distance.nearest_points[0] = contacts[min_index].nearest_points[0];
+  res.minimum_distance.nearest_points[1] = contacts[min_index].nearest_points[1];
+  res.minimum_distance.nearest_points_local[0] = contacts[min_index].nearest_points_local[0];
+  res.minimum_distance.nearest_points_local[1] = contacts[min_index].nearest_points_local[1];
+  res.minimum_distance.nearest_points_local2[0] = contacts[min_index].nearest_points_local2[0];
+  res.minimum_distance.nearest_points_local2[1] = contacts[min_index].nearest_points_local2[1];
+  res.minimum_distance.body_types[0] = contacts[min_index].body_type_1;
+  res.minimum_distance.body_types[1] = contacts[min_index].body_type_2;
+  res.minimum_distance.link_names[0] = contacts[min_index].body_name_1;
+  res.minimum_distance.link_names[1] = contacts[min_index].body_name_2;
+  res.minimum_distance.normal = contacts[min_index].normal;
+  res.minimum_distance.shape_id[0] = contacts[min_index].shape_id[0];
+  res.minimum_distance.shape_id[1] = contacts[min_index].shape_id[1];
+  res.minimum_distance.transform[0] = contacts[min_index].transform[0];
+  res.minimum_distance.transform[1] = contacts[min_index].transform[1];
 }
 
-void CollisionEnvBullet::updateManagedObject(const std::string& id)
+void CollisionEnvBullet::distanceRobot(const DistanceRequest& req, DistanceResult& res,
+                                       const moveit::core::RobotState& state) const
 {
-  if (getWorld()->hasObject(id))
+  CollisionRequest creq;
+  CollisionResult cres;
+  creq.group_name = req.group_name;
+  creq.distance = true;
+  creq.contacts = true;
+
+  checkRobotCollision(creq, cres, state, *req.acm);
+
+  std::vector<Contact> contacts;
+  contacts.reserve(cres.contacts.size());
+  for (const auto& mv : cres.contacts)
+    std::copy(mv.second.begin(), mv.second.end(), std::back_inserter(contacts));
+
+  std::size_t min_index = 0;
+  for (std::size_t i = 1; i < contacts.size(); i++)
   {
-    auto it = getWorld()->find(id);
-    if (manager_->hasCollisionObject(id))
-    {
-      manager_->removeCollisionObject(id);
-      manager_CCD_->removeCollisionObject(id);
-      addToManager(it->second.get());
-    }
-    else
-    {
-      addToManager(it->second.get());
-    }
+    if (contacts[i].depth < contacts[min_index].depth)
+      min_index = i;
   }
-  else
-  {
-    if (manager_->hasCollisionObject(id))
-    {
-      manager_->removeCollisionObject(id);
-      manager_CCD_->removeCollisionObject(id);
-    }
-  }
+
+  res.clear();
+  res.collision = cres.collision;
+  res.minimum_distance.distance = contacts[min_index].depth;
+  res.minimum_distance.nearest_points[0] = contacts[min_index].nearest_points[0];
+  res.minimum_distance.nearest_points[1] = contacts[min_index].nearest_points[1];
+  res.minimum_distance.nearest_points_local[0] = contacts[min_index].nearest_points_local[0];
+  res.minimum_distance.nearest_points_local[1] = contacts[min_index].nearest_points_local[1];
+  res.minimum_distance.nearest_points_local2[0] = contacts[min_index].nearest_points_local2[0];
+  res.minimum_distance.nearest_points_local2[1] = contacts[min_index].nearest_points_local2[1];
+  res.minimum_distance.body_types[0] = contacts[min_index].body_type_1;
+  res.minimum_distance.body_types[1] = contacts[min_index].body_type_2;
+  res.minimum_distance.link_names[0] = contacts[min_index].body_name_1;
+  res.minimum_distance.link_names[1] = contacts[min_index].body_name_2;
+  res.minimum_distance.normal = contacts[min_index].normal;
+  res.minimum_distance.shape_id[0] = contacts[min_index].shape_id[0];
+  res.minimum_distance.shape_id[1] = contacts[min_index].shape_id[1];
+  res.minimum_distance.transform[0] = contacts[min_index].transform[0];
+  res.minimum_distance.transform[1] = contacts[min_index].transform[1];
 }
 
 void CollisionEnvBullet::setWorld(const WorldPtr& world)
 {
   if (world == getWorld())
     return;
+
+  getWorld()->notifyObserverAllObjects(observer_handle_, World::DESTROY);
 
   // turn off notifications about old world
   getWorld()->removeObserver(observer_handle_);
@@ -328,6 +378,53 @@ void CollisionEnvBullet::notifyObjectChange(const ObjectConstPtr& obj, World::Ac
   }
 }
 
+void CollisionEnvBullet::updateManagedObject(const std::string& id)
+{
+  if (getWorld()->hasObject(id))
+  {
+    auto it = getWorld()->find(id);
+    if (manager_->hasCollisionObject(id))
+    {
+      manager_->removeCollisionObject(id);
+      manager_CCD_->removeCollisionObject(id);
+    }
+
+    addToManager(it->second.get());
+  }
+  else
+  {
+    if (manager_->hasCollisionObject(id))
+    {
+      manager_->removeCollisionObject(id);
+      manager_CCD_->removeCollisionObject(id);
+    }
+  }
+}
+
+void CollisionEnvBullet::addToManager(const World::Object* obj)
+{
+  if (!obj->shapes_.empty())
+  {
+    std::vector<CollisionObjectType> collision_object_types;
+
+    for (const shapes::ShapeConstPtr& shape : obj->shapes_)
+    {
+      if (shape->type == shapes::MESH)
+        collision_object_types.push_back(CollisionObjectType::CONVEX_HULL);
+      else
+        collision_object_types.push_back(CollisionObjectType::USE_SHAPE_TYPE);
+    }
+
+    auto cow = collision_detection_bullet::createCollisionObject(obj->id_, collision_detection::BodyType::WORLD_OBJECT,
+                                                                 obj->shapes_, obj->shape_poses_,
+                                                                 collision_object_types, false);
+    cow->setCollisionObjectsTransform(obj->pose_);
+    cow->setContactProcessingThreshold(getContactDistanceThreshold());
+    manager_->addCollisionObject(cow);
+    manager_CCD_->addCollisionObject(cow->clone());
+  }
+}
+
 void CollisionEnvBullet::addAttachedOjects(const moveit::core::RobotState& state,
                                            std::vector<collision_detection_bullet::CollisionObjectWrapperPtr>& cows) const
 {
@@ -336,16 +433,25 @@ void CollisionEnvBullet::addAttachedOjects(const moveit::core::RobotState& state
 
   for (const moveit::core::AttachedBody*& body : attached_bodies)
   {
-    const EigenSTL::vector_Isometry3d& attached_body_transform = body->getGlobalCollisionBodyTransforms();
+    const EigenSTL::vector_Isometry3d& attached_body_transform = body->getShapePoses();
 
-    std::vector<collision_detection_bullet::CollisionObjectType> collision_object_types(
-        attached_body_transform.size(), collision_detection_bullet::CollisionObjectType::USE_SHAPE_TYPE);
+    std::vector<CollisionObjectType> collision_object_types;
+    collision_object_types.reserve(attached_body_transform.size());
+    for (const shapes::ShapeConstPtr& shape : body->getShapes())
+    {
+      if (shape->type == shapes::MESH)
+        collision_object_types.push_back(CollisionObjectType::CONVEX_HULL);
+      else
+        collision_object_types.push_back(CollisionObjectType::USE_SHAPE_TYPE);
+    }
 
     try
     {
-      collision_detection_bullet::CollisionObjectWrapperPtr cow(new collision_detection_bullet::CollisionObjectWrapper(
+      auto cow = collision_detection_bullet::createCollisionObject(
           body->getName(), collision_detection::BodyType::ROBOT_ATTACHED, body->getShapes(), attached_body_transform,
-          collision_object_types, body->getTouchLinks()));
+          collision_object_types, body->getAttachedLinkName(), body->getTouchLinks());
+      cow->setCollisionObjectsTransform(body->getGlobalPose());
+      cow->setContactProcessingThreshold(getContactDistanceThreshold());
       cows.push_back(cow);
     }
     catch (std::exception&)
@@ -378,27 +484,27 @@ void CollisionEnvBullet::updateTransformsFromState(
   for (const std::string& link : active_)
   {
     // select the first of the transformations for each link (composed of multiple shapes...)
-    manager->setCollisionObjectsTransform(link, state.getCollisionBodyTransform(link, 0));
+    manager->setCollisionObjectsTransform(link, state.getGlobalLinkTransform(link));
   }
 }
 
 void CollisionEnvBullet::addLinkAsCollisionObject(const urdf::LinkSharedPtr& link)
 {
-  if (!link->collision_array.empty())
+  if (!link->collision_array.empty() || link->collision)
   {
     const std::vector<urdf::CollisionSharedPtr>& col_array =
         link->collision_array.empty() ? std::vector<urdf::CollisionSharedPtr>(1, link->collision) :
                                         link->collision_array;
 
     std::vector<shapes::ShapeConstPtr> shapes;
-    collision_detection_bullet::AlignedVector<Eigen::Isometry3d> shape_poses;
-    std::vector<collision_detection_bullet::CollisionObjectType> collision_object_types;
+    EigenSTL::vector_Isometry3d shape_poses;
+    std::vector<CollisionObjectType> collision_object_types;
 
     for (const auto& i : col_array)
     {
       if (i && i->geometry)
       {
-        shapes::ShapePtr shape = collision_detection_bullet::constructShape(i->geometry.get());
+        shapes::ShapePtr shape = constructShape(i->geometry.get());
 
         if (shape)
         {
@@ -409,15 +515,15 @@ void CollisionEnvBullet::addLinkAsCollisionObject(const urdf::LinkSharedPtr& lin
           }
 
           shapes.push_back(shape);
-          shape_poses.push_back(collision_detection_bullet::urdfPose2Eigen(i->origin));
+          shape_poses.push_back(urdfPose2Eigen(i->origin));
 
           if (shape->type == shapes::MESH)
           {
-            collision_object_types.push_back(collision_detection_bullet::CollisionObjectType::CONVEX_HULL);
+            collision_object_types.push_back(CollisionObjectType::CONVEX_HULL);
           }
           else
           {
-            collision_object_types.push_back(collision_detection_bullet::CollisionObjectType::USE_SHAPE_TYPE);
+            collision_object_types.push_back(CollisionObjectType::USE_SHAPE_TYPE);
           }
         }
       }
@@ -427,12 +533,14 @@ void CollisionEnvBullet::addLinkAsCollisionObject(const urdf::LinkSharedPtr& lin
     {
       manager_->removeCollisionObject(link->name);
       manager_CCD_->removeCollisionObject(link->name);
+      active_.erase(std::find(active_.begin(), active_.end(), link->name));
     }
 
     try
     {
-      collision_detection_bullet::CollisionObjectWrapperPtr cow(new collision_detection_bullet::CollisionObjectWrapper(
-          link->name, collision_detection::BodyType::ROBOT_LINK, shapes, shape_poses, collision_object_types, true));
+      auto cow = collision_detection_bullet::createCollisionObject(
+          link->name, collision_detection::BodyType::ROBOT_LINK, shapes, shape_poses, collision_object_types, true);
+      cow->setContactProcessingThreshold(getContactDistanceThreshold());
       manager_->addCollisionObject(cow);
       manager_CCD_->addCollisionObject(cow->clone());
       active_.push_back(cow->getName());
@@ -444,9 +552,18 @@ void CollisionEnvBullet::addLinkAsCollisionObject(const urdf::LinkSharedPtr& lin
   }
 }
 
-const std::string& CollisionDetectorAllocatorBullet::getName() const
+const std::string CollisionEnvBullet::getCollisionName() const
 {
   return NAME;
 }
 
+const BVHManagerConstPtr CollisionEnvBullet::getCollisionBVHManager() const
+{
+  return manager_;
+}
+
+const std::string& CollisionDetectorAllocatorBullet::getName() const
+{
+  return NAME;
+}
 }  // namespace collision_detection

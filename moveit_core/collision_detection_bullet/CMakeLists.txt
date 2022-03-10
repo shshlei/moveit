@@ -2,10 +2,10 @@ set(MOVEIT_LIB_NAME moveit_collision_detection_bullet)
 
 add_library(${MOVEIT_LIB_NAME}
   src/bullet_integration/bullet_utils.cpp
+  src/bullet_integration/bullet_bvh_manager.cpp
   src/bullet_integration/bullet_discrete_bvh_manager.cpp
   src/bullet_integration/bullet_cast_bvh_manager.cpp
   src/collision_env_bullet.cpp
-  src/bullet_integration/bullet_bvh_manager.cpp
 )
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 
@@ -14,6 +14,9 @@ target_link_libraries(${MOVEIT_LIB_NAME} moveit_collision_detection
     ${urdfdom_headers_LIBRARIES} ${Boost_LIBRARIES}
     ${BULLET_LIBRARIES})
 add_dependencies(${MOVEIT_LIB_NAME} ${catkin_EXPORTED_TARGETS})
+
+add_executable(demo_box_box examples/box_box_example.cpp)
+target_link_libraries(demo_box_box ${MOVEIT_LIB_NAME})
 
 add_library(collision_detector_bullet_plugin src/collision_detector_bullet_plugin_loader.cpp)
 set_target_properties(collision_detector_bullet_plugin PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")

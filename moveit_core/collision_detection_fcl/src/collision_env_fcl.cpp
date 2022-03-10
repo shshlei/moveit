@@ -459,6 +459,16 @@ void CollisionEnvFCL::updatedPaddingOrScaling(const std::vector<std::string>& li
   }
 }
 
+const std::string CollisionEnvFCL::getCollisionName() const
+{
+  return NAME;
+}
+
+const BVHManagerConstPtr CollisionEnvFCL::getCollisionBVHManager() const
+{
+  return nullptr;
+}
+
 const std::string& CollisionDetectorAllocatorFCL::getName() const
 {
   return NAME;

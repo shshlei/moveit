@@ -90,6 +90,10 @@ public:
 
   void setWorld(const WorldPtr& world) override;
 
+  const std::string getCollisionName() const override;
+
+  const BVHManagerConstPtr getCollisionBVHManager() const override;
+
 protected:
   /** \brief Updates the FCL collision geometry and objects saved in the CollisionRobotFCL members to reflect a new
    *   padding or scaling of the robot links.

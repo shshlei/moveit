@@ -1811,6 +1811,16 @@ CollisionEnvDistanceField::generateDistanceFieldCacheEntryWorld()
   return dfce;
 }
 
+const std::string CollisionEnvDistanceField::getCollisionName() const
+{
+  return NAME;
+}
+
+const BVHManagerConstPtr CollisionEnvDistanceField::getCollisionBVHManager() const
+{
+  return nullptr;
+}
+
 const std::string& CollisionDetectorAllocatorDistanceField::getName() const
 {
   return NAME;

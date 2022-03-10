@@ -86,6 +86,17 @@ public:
 
   void setWorld(const WorldPtr& world) override;
 
+  void setContactDistanceThreshold(double contact_distance) override
+  {
+    CollisionEnv::setContactDistanceThreshold(contact_distance);
+    manager_->setContactDistanceThreshold(contact_distance);
+    manager_CCD_->setContactDistanceThreshold(contact_distance);
+  }
+
+  const std::string getCollisionName() const override;
+
+  const BVHManagerConstPtr getCollisionBVHManager() const override;
+
 protected:
   /** \brief Updates the poses of the objects in the manager according to given robot state */
   void updateTransformsFromState(const moveit::core::RobotState& state,
@@ -100,15 +111,12 @@ protected:
                          std::vector<collision_detection_bullet::CollisionObjectWrapperPtr>& cows) const;
 
   /** \brief Bundles the different checkSelfCollision functions into a single function */
-  void checkSelfCollisionHelper(const CollisionRequest& req, CollisionResult& res,
-                                const moveit::core::RobotState& state, const AllowedCollisionMatrix* acm) const;
+  void checkCollisionHelper(const CollisionRequest& req, CollisionResult& res, const moveit::core::RobotState& state,
+                            const AllowedCollisionMatrix* acm, bool self) const;
 
   void checkRobotCollisionHelperCCD(const CollisionRequest& req, CollisionResult& res,
                                     const moveit::core::RobotState& state1, const moveit::core::RobotState& state2,
                                     const AllowedCollisionMatrix* acm) const;
-
-  void checkRobotCollisionHelper(const CollisionRequest& req, CollisionResult& res,
-                                 const moveit::core::RobotState& state, const AllowedCollisionMatrix* acm) const;
 
   /** \brief Construts a bullet collision object out of a robot link */
   void addLinkAsCollisionObject(const urdf::LinkSharedPtr& link);
@@ -144,5 +152,8 @@ private:
   void notifyObjectChange(const ObjectConstPtr& obj, World::Action action);
 
   World::ObserverHandle observer_handle_;
+
+  mutable double approximate_contact_distance_{ 0.0 };
+  mutable double approximate_contact_distance_robot_{ 0.0 };
 };
 }  // namespace collision_detection

@@ -66,21 +66,17 @@ bool collisionCallback(fcl::CollisionObjectd* o1, fcl::CollisionObjectd* o2, voi
     return false;
 
   // If active components are specified
-  if (cdata->active_components_only_)
+  if (!cdata->active_components_only.empty())
   {
-    const moveit::core::LinkModel* l1 =
-        cd1->type == BodyTypes::ROBOT_LINK ?
-            cd1->ptr.link :
-            (cd1->type == BodyTypes::ROBOT_ATTACHED ? cd1->ptr.ab->getAttachedLink() : nullptr);
-    const moveit::core::LinkModel* l2 =
-        cd2->type == BodyTypes::ROBOT_LINK ?
-            cd2->ptr.link :
-            (cd2->type == BodyTypes::ROBOT_ATTACHED ? cd2->ptr.ab->getAttachedLink() : nullptr);
+    const std::string& l1 = cd1->type == BodyTypes::ROBOT_LINK ? cd1->ptr.link->getName() : 
+                                   (cd1->type == BodyTypes::ROBOT_ATTACHED ? cd1->ptr.ab->getAttachedLinkName() : "");
+    const std::string& l2 = cd2->type == BodyTypes::ROBOT_LINK ? cd2->ptr.link->getName() : 
+                                   (cd2->type == BodyTypes::ROBOT_ATTACHED ? cd2->ptr.ab->getAttachedLinkName() : "");
 
     // If neither of the involved components is active
-    if ((!l1 || cdata->active_components_only_->find(l1) == cdata->active_components_only_->end()) &&
-        (!l2 || cdata->active_components_only_->find(l2) == cdata->active_components_only_->end()))
-      return false;
+    if ((l1.empty() || std::find(cdata->active_components_only.begin(), cdata->active_components_only.end(), l1) == cdata->active_components_only.end()) &&
+        (l2.empty() || std::find(cdata->active_components_only.begin(), cdata->active_components_only.end(), l2) == cdata->active_components_only.end()))
+        return false;
   }
 
   // use the collision matrix (if any) to avoid certain collision checks
@@ -420,23 +416,17 @@ bool distanceCallback(fcl::CollisionObjectd* o1, fcl::CollisionObjectd* o2, void
     return false;
 
   // If active components are specified
-  if (cdata->req->active_components_only)
+  if (!cdata->req->active_components_only.empty())
   {
-    const moveit::core::LinkModel* l1 =
-        cd1->type == BodyTypes::ROBOT_LINK ?
-            cd1->ptr.link :
-            (cd1->type == BodyTypes::ROBOT_ATTACHED ? cd1->ptr.ab->getAttachedLink() : nullptr);
-    const moveit::core::LinkModel* l2 =
-        cd2->type == BodyTypes::ROBOT_LINK ?
-            cd2->ptr.link :
-            (cd2->type == BodyTypes::ROBOT_ATTACHED ? cd2->ptr.ab->getAttachedLink() : nullptr);
+    const std::string& l1 = cd1->type == BodyTypes::ROBOT_LINK ? cd1->ptr.link->getName() : 
+                                   (cd1->type == BodyTypes::ROBOT_ATTACHED ? cd1->ptr.ab->getAttachedLinkName() : "");
+    const std::string& l2 = cd2->type == BodyTypes::ROBOT_LINK ? cd2->ptr.link->getName() : 
+                                   (cd2->type == BodyTypes::ROBOT_ATTACHED ? cd2->ptr.ab->getAttachedLinkName() : "");
 
     // If neither of the involved components is active
-    if ((!l1 || cdata->req->active_components_only->find(l1) == cdata->req->active_components_only->end()) &&
-        (!l2 || cdata->req->active_components_only->find(l2) == cdata->req->active_components_only->end()))
-    {
-      return false;
-    }
+    if ((l1.empty() || std::find(cdata->req->active_components_only.begin(), cdata->req->active_components_only.end(), l1) == cdata->req->active_components_only.end()) &&
+        (l2.empty() || std::find(cdata->req->active_components_only.begin(), cdata->req->active_components_only.end(), l2) == cdata->req->active_components_only.end()))
+        return false;
   }
 
   // use the collision matrix (if any) to avoid certain distance checks
@@ -938,9 +928,9 @@ void cleanCollisionGeometryCache()
 void CollisionData::enableGroup(const moveit::core::RobotModelConstPtr& robot_model)
 {
   if (robot_model->hasJointModelGroup(req_->group_name))
-    active_components_only_ = &robot_model->getJointModelGroup(req_->group_name)->getUpdatedLinkModelsSet();
+    active_components_only = robot_model->getJointModelGroup(req_->group_name)->getUpdatedLinkModelsWithGeometryNames();
   else
-    active_components_only_ = nullptr;
+    active_components_only.clear();
 }
 
 void FCLObject::registerTo(fcl::BroadPhaseCollisionManagerd* manager)

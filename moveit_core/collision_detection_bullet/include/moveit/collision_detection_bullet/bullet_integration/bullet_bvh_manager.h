@@ -33,15 +33,15 @@
 
 #pragma once
 
+#include <moveit/collision_detection/bvh_manager.h>
 #include <moveit/collision_detection_bullet/bullet_integration/bullet_utils.h>
-#include <moveit/macros/class_forward.h>
 
 namespace collision_detection_bullet
 {
 MOVEIT_CLASS_FORWARD(BulletBVHManager);
 
 /** @brief A bounding volume hierarchy (BVH) implementation of a tesseract contact manager */
-class BulletBVHManager
+class BulletBVHManager : public collision_detection::BVHManager
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -49,64 +49,68 @@ public:
   /** \brief Constructor */
   BulletBVHManager();
 
-  virtual ~BulletBVHManager();
+  ~BulletBVHManager();
 
   /** @brief Clone the manager
    *
    * This is to be used for multi threaded applications. A user should make a clone for each thread. */
   BulletBVHManagerPtr clone() const;
 
+  bool addCollisionObject(const std::string& name, const collision_detection::BodyType& type_id,
+                          const std::vector<shapes::ShapeConstPtr>& shapes,
+                          const EigenSTL::vector_Isometry3d& shape_poses,
+                          const std::vector<collision_detection::CollisionObjectType>& collision_object_types,
+                          bool active = true) override;
+
+  bool addCollisionObject(const std::string& name, const collision_detection::BodyType& type_id,
+                          const std::vector<shapes::ShapeConstPtr>& shapes,
+                          const EigenSTL::vector_Isometry3d& shape_poses,
+                          const std::vector<collision_detection::CollisionObjectType>& collision_object_types,
+                          const std::string& pname, const std::set<std::string>& touch_links) override;
+
   /**@brief Find if a collision object already exists
    * @param name The name of the collision object
    * @return true if it exists, otherwise false. */
-  bool hasCollisionObject(const std::string& name) const;
+  bool hasCollisionObject(const std::string& name) const override;
 
   /**@brief Remove an object from the checker
    * @param name The name of the object
    * @return true if successfully removed, otherwise false. */
-  bool removeCollisionObject(const std::string& name);
+  bool removeCollisionObject(const std::string& name) override;
 
   /**@brief Enable an object
    * @param name The name of the object
    * @return true if successfully enabled, otherwise false. */
-  bool enableCollisionObject(const std::string& name);
+  bool enableCollisionObject(const std::string& name) override;
 
   /**@brief Disable an object
    * @param name The name of the object
    * @return true if successfully disabled, otherwise false. */
-  bool disableCollisionObject(const std::string& name);
+  bool disableCollisionObject(const std::string& name) override;
+
+  bool isCollisionObjectEnabled(const std::string& name) const override;
 
   /**@brief Set a single static collision object's tansform
    * @param name The name of the object
    * @param pose The tranformation in world */
-  void setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose);
+  void setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose) override;
 
   /**@brief Set which collision objects are active
    * @param names A vector of collision object names */
-  void setActiveCollisionObjects(const std::vector<std::string>& names);
-
-  /**@brief Get which collision objects are active
-   * @return A vector of collision object names */
-  const std::vector<std::string>& getActiveCollisionObjects() const;
+  void setActiveCollisionObjects(const std::vector<std::string>& names) override;
 
   /**@brief Set the contact distance threshold for which collision should be considered through expanding the AABB by
    * the
    * contact_distance for all links.
    * @param contact_distance The contact distance */
-  void setContactDistanceThreshold(double contact_distance);
-
-  /**@brief Get the contact distance threshold
-   * @return The contact distance */
-  double getContactDistanceThreshold() const;
+  void setContactDistanceThreshold(double contact_distance) override;
 
   /**@brief Perform a contact test for all objects
    * @param collisions The Contact results data
    * @param req The collision request data
    * @param acm The allowed collision matrix
    * @param self Used for indicating self collision checks */
-  virtual void contactTest(collision_detection::CollisionResult& collisions,
-                           const collision_detection::CollisionRequest& req,
-                           const collision_detection::AllowedCollisionMatrix* acm, bool self) = 0;
+  virtual void contactTest(collision_detection::ContactTestData& cdata, bool self) = 0;
 
   /**@brief Add a collision object to the checker
    *
@@ -125,19 +129,15 @@ public:
    * @return true if successfully added, otherwise false. */
   /**@brief Add a tesseract collision object to the manager
    * @param cow The tesseract bullet collision object */
-  virtual void addCollisionObject(const CollisionObjectWrapperPtr& cow) = 0;
+  virtual void addCollisionObject(const CollisionObjectWrapperPtr& cow);
 
   const std::map<std::string, CollisionObjectWrapperPtr>& getCollisionObjects() const;
+
+  const CollisionObjectWrapperPtr getCollisionObject(const std::string& name) const;
 
 protected:
   /** @brief A map of collision objects being managed */
   std::map<std::string, CollisionObjectWrapperPtr> link2cow_;
-
-  /** @brief A list of the active collision links */
-  std::vector<std::string> active_;
-
-  /** @brief The contact distance threshold */
-  double contact_distance_;
 
   /** @brief The bullet collision dispatcher used for getting object to object collison algorithm */
   std::unique_ptr<btCollisionDispatcher> dispatcher_;

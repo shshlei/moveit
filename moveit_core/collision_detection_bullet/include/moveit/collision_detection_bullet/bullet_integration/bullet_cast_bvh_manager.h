@@ -33,7 +33,6 @@
 
 #pragma once
 
-#include <moveit/collision_detection_bullet/bullet_integration/bullet_utils.h>
 #include <moveit/collision_detection_bullet/bullet_integration/bullet_bvh_manager.h>
 #include <moveit/macros/class_forward.h>
 
@@ -50,7 +49,7 @@ public:
   /** \brief Constructor */
   BulletCastBVHManager() = default;
 
-  ~BulletCastBVHManager() override = default;
+  ~BulletCastBVHManager() = default;
 
   /**@brief Clone the manager
    *
@@ -71,8 +70,7 @@ public:
    * @param collisions The Contact results data
    * @param req The collision request data
    * @param acm The allowed collision matrix */
-  void contactTest(collision_detection::CollisionResult& collisions, const collision_detection::CollisionRequest& req,
-                   const collision_detection::AllowedCollisionMatrix* acm, bool self) override;
+  void contactTest(collision_detection::ContactTestData& cdata, bool self) override;
 
   /**@brief Add a tesseract collision object to the manager
    * @param cow The tesseract bullet collision object */

@@ -32,12 +32,10 @@
 /* Authors: Levi Armstrong, Jens Petit */
 
 #include <moveit/collision_detection_bullet/bullet_integration/bullet_bvh_manager.h>
-#include <map>
-#include <utility>
 
 namespace collision_detection_bullet
 {
-BulletBVHManager::BulletBVHManager()
+BulletBVHManager::BulletBVHManager() : BVHManager()
 {
   dispatcher_ = std::make_unique<btCollisionDispatcher>(&coll_config_);
 
@@ -58,8 +56,47 @@ BulletBVHManager::BulletBVHManager()
 BulletBVHManager::~BulletBVHManager()
 {
   // clean up remaining objects
-  for (const std::pair<const std::string, collision_detection_bullet::CollisionObjectWrapperPtr>& cow : link2cow_)
+  for (const std::pair<const std::string, CollisionObjectWrapperPtr>& cow : link2cow_)
     removeCollisionObjectFromBroadphase(cow.second, broadphase_, dispatcher_);
+}
+
+bool BulletBVHManager::addCollisionObject(
+    const std::string& name, const collision_detection::BodyType& type_id,
+    const std::vector<shapes::ShapeConstPtr>& shapes, const EigenSTL::vector_Isometry3d& shape_poses,
+    const std::vector<collision_detection::CollisionObjectType>& collision_object_types, bool active)
+{
+  if (hasCollisionObject(name))
+    removeCollisionObject(name);
+
+  auto cow = createCollisionObject(name, type_id, shapes, shape_poses, collision_object_types, active);
+  if (cow)
+  {
+    cow->setContactProcessingThreshold(contact_distance_);
+    addCollisionObject(cow);
+    return true;
+  }
+
+  return false;
+}
+
+bool BulletBVHManager::addCollisionObject(
+    const std::string& name, const collision_detection::BodyType& type_id,
+    const std::vector<shapes::ShapeConstPtr>& shapes, const EigenSTL::vector_Isometry3d& shape_poses,
+    const std::vector<collision_detection::CollisionObjectType>& collision_object_types, const std::string& pname,
+    const std::set<std::string>& touch_links)
+{
+  if (hasCollisionObject(name))
+    removeCollisionObject(name);
+
+  auto cow = createCollisionObject(name, type_id, shapes, shape_poses, collision_object_types, pname, touch_links);
+  if (cow)
+  {
+    cow->setContactProcessingThreshold(contact_distance_);
+    addCollisionObject(cow);
+    return true;
+  }
+
+  return false;
 }
 
 bool BulletBVHManager::hasCollisionObject(const std::string& name) const
@@ -87,6 +124,13 @@ bool BulletBVHManager::enableCollisionObject(const std::string& name)
   if (it != link2cow_.end())
   {
     it->second->m_enabled = true;
+
+    // Need to clean the proxy from broadphase cache so BroadPhaseFilter gets called again.
+    // The BroadPhaseFilter only gets called once, so if you change when two objects can be in collision, like filters
+    // this must be called or contacts between shapes will be missed.
+    if (it->second->getBroadphaseHandle())
+      broadphase_->getOverlappingPairCache()->cleanProxyFromPairs(it->second->getBroadphaseHandle(), dispatcher_.get());
+
     return true;
   }
 
@@ -99,8 +143,24 @@ bool BulletBVHManager::disableCollisionObject(const std::string& name)
   if (it != link2cow_.end())
   {
     it->second->m_enabled = false;
+
+    // Need to clean the proxy from broadphase cache so BroadPhaseFilter gets called again.
+    // The BroadPhaseFilter only gets called once, so if you change when two objects can be in collision, like filters
+    // this must be called or contacts between shapes will be missed.
+    if (it->second->getBroadphaseHandle())
+      broadphase_->getOverlappingPairCache()->cleanProxyFromPairs(it->second->getBroadphaseHandle(), dispatcher_.get());
+
     return true;
   }
+
+  return false;
+}
+
+bool BulletBVHManager::isCollisionObjectEnabled(const std::string& name) const
+{
+  auto it = link2cow_.find(name);
+  if (it != link2cow_.end())
+    return it->second->m_enabled;
 
   return false;
 }
@@ -111,13 +171,16 @@ void BulletBVHManager::setCollisionObjectsTransform(const std::string& name, con
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    CollisionObjectWrapperPtr& cow = it->second;
-    btTransform tf = convertEigenToBt(pose);
-    cow->setWorldTransform(tf);
+    const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
+    if (!cur_tf.translation().isApprox(pose.translation(), 1e-8) || !cur_tf.rotation().isApprox(pose.rotation(), 1e-8))
+    {
+      CollisionObjectWrapperPtr& cow = it->second;
+      cow->setCollisionObjectsTransform(pose);
 
-    // Now update Broadphase AABB (See BulletWorld updateSingleAabb function)
-    if (cow->getBroadphaseHandle())
-      updateBroadphaseAABB(cow, broadphase_, dispatcher_);
+      // Now update Broadphase AABB (See BulletWorld updateSingleAabb function)
+      if (cow->getBroadphaseHandle())
+        updateBroadphaseAABB(cow, broadphase_, dispatcher_);
+    }
   }
 }
 
@@ -137,27 +200,26 @@ void BulletBVHManager::setActiveCollisionObjects(const std::vector<std::string>&
   }
 }
 
-const std::vector<std::string>& BulletBVHManager::getActiveCollisionObjects() const
-{
-  return active_;
-}
-
 void BulletBVHManager::setContactDistanceThreshold(double contact_distance)
 {
-  contact_distance_ = contact_distance;
-
-  for (std::pair<const std::string, CollisionObjectWrapperPtr>& co : link2cow_)
+  if (contact_distance_ != contact_distance)
   {
-    CollisionObjectWrapperPtr& cow = co.second;
-    cow->setContactProcessingThreshold(static_cast<btScalar>(contact_distance));
-    if (cow->getBroadphaseHandle())
-      updateBroadphaseAABB(cow, broadphase_, dispatcher_);
+    contact_distance_ = contact_distance;
+
+    for (std::pair<const std::string, CollisionObjectWrapperPtr>& co : link2cow_)
+    {
+      CollisionObjectWrapperPtr& cow = co.second;
+      cow->setContactProcessingThreshold(static_cast<btScalar>(contact_distance));
+      if (cow->getBroadphaseHandle())
+        updateBroadphaseAABB(cow, broadphase_, dispatcher_);
+    }
   }
 }
 
-double BulletBVHManager::getContactDistanceThreshold() const
+void BulletBVHManager::addCollisionObject(const CollisionObjectWrapperPtr& cow)
 {
-  return contact_distance_;
+  link2cow_[cow->getName()] = cow;
+  addCollisionObjectToBroadphase(cow, broadphase_, dispatcher_);
 }
 
 const std::map<std::string, CollisionObjectWrapperPtr>& BulletBVHManager::getCollisionObjects() const
@@ -165,4 +227,12 @@ const std::map<std::string, CollisionObjectWrapperPtr>& BulletBVHManager::getCol
   return link2cow_;
 }
 
+const CollisionObjectWrapperPtr BulletBVHManager::getCollisionObject(const std::string& name) const
+{
+  auto it = link2cow_.find(name);
+  if (it != link2cow_.end())
+    return it->second;
+
+  return std::make_shared<CollisionObjectWrapper>();
+}
 }  // namespace collision_detection_bullet

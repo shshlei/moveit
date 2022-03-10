@@ -971,6 +971,54 @@ public:
   /** \brief Clone a planning scene. Even if the scene \e scene depends on a parent, the cloned scene will not. */
   static PlanningScenePtr clone(const PlanningSceneConstPtr& scene);
 
+  void setSafetyDistance(double safety_distance)
+  {
+    safety_distance_ = safety_distance;
+    if (safety_distance_ < 0.0)
+    {
+      ROS_WARN_NAMED("planning_scene", "Safety distance threshold %.5f is negative, set it to zero", safety_distance_);
+      safety_distance_ = 0.0;
+    }
+
+    for (auto& col : collision_)
+      col.second->setSafetyDistance(safety_distance_);
+  }
+
+  double getSafetyDistance() const
+  {
+    return safety_distance_;
+  }
+
+  void setContactDistanceThreshold(double contact_distance)
+  {
+    contact_distance_ = contact_distance;
+    if (contact_distance_ < 0.0)
+    {
+      ROS_WARN_NAMED("planning_scene", "Contact distance threshold %.5f is negative, set it to zero", contact_distance_);
+      contact_distance_ = 0.0;
+    }
+
+    for (auto& col : collision_)
+      col.second->setContactDistanceThreshold(contact_distance_);
+  }
+
+  double getContactDistanceThreshold() const
+  {
+    return contact_distance_;
+  }
+
+  void setNegativeDistanceThreshold(double negative_distance)
+  {
+    negative_distance_ = negative_distance;
+    for (auto& col : collision_)
+      col.second->setNegativeDistanceThreshold(negative_distance_);
+  }
+
+  double getNegativeDistanceThreshold() const
+  {
+    return negative_distance_;
+  }
+
 private:
   /* Private constructor used by the diff() methods. */
   PlanningScene(const PlanningSceneConstPtr& parent);
@@ -1017,6 +1065,45 @@ private:
     {
       return cenv_unpadded_const_ ? cenv_unpadded_const_ : parent_->getCollisionEnvUnpadded();
     }
+
+    void setSafetyDistance(double safety_distance)
+    {
+      if (cenv_)
+      {
+        cenv_->setSafetyDistance(safety_distance);
+        cenv_unpadded_->setSafetyDistance(safety_distance);
+      }
+//      else
+//      {
+//          parent_->setSafetyDistance(safety_distance);
+//      }
+    }
+
+    void setContactDistanceThreshold(double contact_distance)
+    {
+      if (cenv_)
+      {
+        cenv_->setContactDistanceThreshold(contact_distance);
+        cenv_unpadded_->setContactDistanceThreshold(contact_distance);
+      }
+//      else
+//      {
+//          parent_->setSafetyDistance(contact_distance);
+//      }
+    }
+
+    void setNegativeDistanceThreshold(double negative_distance)
+    {
+      if (cenv_)
+      {
+        cenv_->setNegativeDistanceThreshold(negative_distance);
+        cenv_unpadded_->setNegativeDistanceThreshold(negative_distance);
+      }
+//      else
+//      {
+//          parent_->setSafetyDistance(negative_distance);
+//      }
+    }
     void findParent(const PlanningScene& scene);
     void copyPadding(const CollisionDetector& src);
   };
@@ -1061,5 +1148,11 @@ private:
 
   // a map of object types
   std::unique_ptr<ObjectTypeMap> object_types_;
+
+  double safety_distance_{ 0.0 };
+
+  double contact_distance_{ 0.0 };
+
+  double negative_distance_{ 1.0 };
 };
 }  // namespace planning_scene

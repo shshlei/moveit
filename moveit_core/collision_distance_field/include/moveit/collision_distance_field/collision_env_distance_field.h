@@ -215,6 +215,10 @@ public:
   void getAllCollisions(const CollisionRequest& req, CollisionResult& res, const moveit::core::RobotState& state,
                         const AllowedCollisionMatrix* acm, GroupStateRepresentationPtr& gsr) const;
 
+  const std::string getCollisionName() const override;
+
+  const BVHManagerConstPtr getCollisionBVHManager() const override;
+
 protected:
   bool getSelfProximityGradients(GroupStateRepresentationPtr& gsr) const;
 

@@ -33,9 +33,7 @@
 
 #pragma once
 
-#include <moveit/collision_detection_bullet/bullet_integration/bullet_utils.h>
 #include <moveit/collision_detection_bullet/bullet_integration/bullet_bvh_manager.h>
-#include <moveit/macros/class_forward.h>
 
 namespace collision_detection_bullet
 {
@@ -50,7 +48,7 @@ public:
   /** \brief Constructor */
   BulletDiscreteBVHManager() = default;
 
-  ~BulletDiscreteBVHManager() override = default;
+  ~BulletDiscreteBVHManager() = default;
 
   /**@brief Clone the manager
    *
@@ -61,11 +59,6 @@ public:
    * @param collisions The Contact results data
    * @param acm The allowed collision matrix
    * @param req The contact request */
-  void contactTest(collision_detection::CollisionResult& collisions, const collision_detection::CollisionRequest& req,
-                   const collision_detection::AllowedCollisionMatrix* acm, bool self) override;
-
-  /**@brief Add a bullet collision object to the manager
-   *  @param cow The bullet collision object */
-  void addCollisionObject(const CollisionObjectWrapperPtr& cow) override;
+  void contactTest(collision_detection::ContactTestData& cdata, bool self) override;
 };
 }  // namespace collision_detection_bullet
