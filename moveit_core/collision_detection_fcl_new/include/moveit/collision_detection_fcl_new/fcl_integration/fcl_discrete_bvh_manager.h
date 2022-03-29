@@ -30,11 +30,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Authors: Levi Armstrong, Shi Shenglei  */
+/* Authors: Shi Shenglei  */
 
 #pragma once
 
-#include <moveit/collision_detection_fcl/fcl_integration/fcl_bvh_manager.h>
+#include <moveit/collision_detection_fcl_new/fcl_integration/fcl_bvh_manager.h>
 
 namespace collision_detection_fcl
 {

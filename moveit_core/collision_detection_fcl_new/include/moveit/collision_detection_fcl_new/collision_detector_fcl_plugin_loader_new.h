@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Bryce Willey */
+/* Author: Shi Shenglei */
 
 #pragma once
 

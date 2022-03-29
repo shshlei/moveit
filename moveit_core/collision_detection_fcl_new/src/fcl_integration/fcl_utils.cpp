@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Authors: Levi Armstrong, Shi Shenglei */
+/* Authors: Shi Shenglei */
 
 #include <fcl/geometry/bvh/BVH_model-inl.h>
 #include <fcl/geometry/shape/box-inl.h>
@@ -42,7 +42,7 @@
 #include <fcl/geometry/shape/capsule-inl.h>
 #include <fcl/geometry/octree/octree-inl.h>
 
-#include <moveit/collision_detection_fcl/fcl_integration/fcl_utils.h>
+#include <moveit/collision_detection_fcl_new/fcl_integration/fcl_utils.h>
 
 #include <moveit/collision_detection/collision_utils.h>
 

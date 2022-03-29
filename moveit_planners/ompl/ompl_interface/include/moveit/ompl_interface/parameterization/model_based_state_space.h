@@ -234,6 +234,8 @@ public:
 
   double distance(const ompl::base::State* state1, const ompl::base::State* state2) const override;
 
+  ompl::base::State *allocState() const override;
+
   void copyState(ompl::base::State* destination, const ompl::base::State* source) const override;
 
   ompl::base::StateSamplerPtr allocDefaultStateSampler() const override;

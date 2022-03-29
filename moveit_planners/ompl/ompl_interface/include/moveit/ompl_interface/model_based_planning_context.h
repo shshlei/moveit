@@ -38,6 +38,7 @@
 
 #include <moveit/ompl_interface/parameterization/model_based_state_space.h>
 #include <moveit/ompl_interface/detail/constrained_valid_state_sampler.h>
+#include <moveit/ompl_interface/detail/safety_certificate.h>
 #include <moveit/constraint_samplers/constraint_sampler_manager.h>
 #include <moveit/planning_interface/planning_interface.h>
 
@@ -277,7 +278,7 @@ public:
   /* @brief Solve the planning problem. Return true if the problem is solved
      @param timeout The time to spend on solving
      @param count The number of runs to combine the paths of, in an attempt to generate better quality paths
-  */
+     */
   bool solve(double timeout, unsigned int count);
 
   /* @brief Benchmark the planning problem. Return true on successful saving of benchmark results
@@ -285,7 +286,7 @@ public:
      @param count The number of runs to average in the computation of the benchmark
      @param filename The name of the file to which the benchmark results are to be saved (automatic names can be
      provided if a name is not specified)
-  */
+     */
   bool benchmark(double timeout, unsigned int count, const std::string& filename = "");
 
   /* @brief Get the amount of time spent computing the last plan */
@@ -349,28 +350,30 @@ protected:
      configuration in ompl_planning.yaml via the `termination_condition` parameter.
      Possible values are:
 
-     * `Iteration[num]`: Terminate after `num` iterations. Here, `num` should be replaced
-       with a positive integer.
-     * `CostConvergence[solutions_window,epsilon]`: Terminate after the cost (as specified
-       by an optimization objective) has converged. The parameter `solutions_window`
-       specifies the minimum number of solutions to use in deciding whether a planner has
-       converged. The parameter `epsilon`	is the threshold to consider for convergence.
-       This should be a positive number close to 0. If the cumulative moving average does
-       not change by a relative fraction of epsilon after a new better solution is found,
-       convergence has been reached.
-     * `ExactSolution`: Terminate as soon as an exact solution is found or a timeout
-       occurs. This modifies the behavior of anytime/optimizing planners to terminate
-       upon discovering the first feasible solution.
+   * `Iteration[num]`: Terminate after `num` iterations. Here, `num` should be replaced
+   with a positive integer.
+   * `CostConvergence[solutions_window,epsilon]`: Terminate after the cost (as specified
+   by an optimization objective) has converged. The parameter `solutions_window`
+   specifies the minimum number of solutions to use in deciding whether a planner has
+   converged. The parameter `epsilon`	is the threshold to consider for convergence.
+   This should be a positive number close to 0. If the cumulative moving average does
+   not change by a relative fraction of epsilon after a new better solution is found,
+   convergence has been reached.
+   * `ExactSolution`: Terminate as soon as an exact solution is found or a timeout
+   occurs. This modifies the behavior of anytime/optimizing planners to terminate
+   upon discovering the first feasible solution.
 
-     In all cases, the planner will terminate when either the user-specified termination
-     condition is satisfied or the time limit specified by `timeout` has been reached,
-     whichever occurs first.
-  */
+   In all cases, the planner will terminate when either the user-specified termination
+   condition is satisfied or the time limit specified by `timeout` has been reached,
+   whichever occurs first.
+   */
   virtual ob::PlannerTerminationCondition constructPlannerTerminationCondition(double timeout,
                                                                                const ompl::time::point& start);
 
   void registerTerminationCondition(const ob::PlannerTerminationCondition& ptc);
   void unregisterTerminationCondition();
+
+  SafetyCertificatePtr safety_certificate_;
 
   ModelBasedPlanningContextSpecification spec_;
 

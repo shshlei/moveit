@@ -445,6 +445,24 @@ public:
     return subgroup_names_set_.find(group) != subgroup_names_set_.end();
   }
 
+  /** \brief Set the names of the subspacegroups for this group */
+  void setSubspacegroupNames(const std::vector<std::string>& subspacegroups);
+
+  /** \brief Get the names of the groups that are subsets of this one (in terms of joints set) */
+  const std::vector<std::string>& getSubspacegroupNames() const
+  {
+    return subspacegroup_names_;
+  }
+
+  /** \brief Get the groups that are subsets of this one (in terms of joints set) */
+  void getSubspacegroups(std::vector<const JointModelGroup*>& subspace_groups) const;
+
+  /** \brief Check if the joints of group \e group are a subset of the joints in this group */
+  bool isSubspacegroup(const std::string& group) const
+  {
+    return subspacegroup_names_set_.find(group) != subspacegroup_names_set_.end();
+  }
+
   /** \brief Check if this group is a linear chain */
   bool isChain() const
   {
@@ -722,6 +740,12 @@ protected:
 
   /** \brief The set of labelled subgroups that are included in this group */
   std::set<std::string> subgroup_names_set_;
+
+  /** \brief The set of labelled subspacegroups that are included in this group */
+  std::vector<std::string> subspacegroup_names_;
+
+  /** \brief The set of labelled subspacegroups that are included in this group */
+  std::set<std::string> subspacegroup_names_set_;
 
   /** \brief If an end-effector is attached to this group, the name of that end-effector is stored in this variable */
   std::vector<std::string> attached_end_effector_names_;

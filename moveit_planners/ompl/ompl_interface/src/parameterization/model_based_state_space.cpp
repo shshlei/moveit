@@ -128,6 +128,7 @@ void ompl_interface::GroupBasedStateSpace<StateSpace>::copyToOMPLState(ompl::bas
     std::vector<double> reals;
     rstate.copyJointGroupPositions(spec_.joint_model_group_, reals);
     StateSpace::copyFromReals(state, reals);
+    StateSpace::enforceBounds(state);
   }
 }
 
@@ -242,7 +243,7 @@ ompl_interface::ModelBasedStateSpace::ModelBasedStateSpace(ModelBasedStateSpaceS
   }
 
   std::vector<const moveit::core::JointModelGroup*> sub_groups;
-  spec_.joint_model_group_->getSubgroups(sub_groups);
+  spec_.joint_model_group_->getSubspacegroups(sub_groups);
 
   if (sub_groups.empty())
   {
@@ -322,6 +323,13 @@ void ompl_interface::ModelBasedStateSpace::setTagSnapToSegment(double snap)
     tag_snap_to_segment_ = snap;
     tag_snap_to_segment_complement_ = 1.0 - tag_snap_to_segment_;
   }
+}
+
+ompl::base::State *ompl_interface::ModelBasedStateSpace::allocState() const
+{
+    auto *state = new StateType();
+    allocStateComponents(state);
+    return static_cast<ompl::base::State *>(state);
 }
 
 void ompl_interface::ModelBasedStateSpace::copyState(ompl::base::State* destination,

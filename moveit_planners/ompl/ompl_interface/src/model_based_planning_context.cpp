@@ -71,6 +71,10 @@
 #include "ompl/base/objectives/StateCostIntegralObjective.h"
 #include "ompl/base/objectives/MaximizeMinClearanceObjective.h"
 #include <ompl/geometric/planners/prm/LazyPRM.h>
+#include <ompl/geometric/planners/hsc/BiHSC.h>
+#include <ompl/geometric/planners/hsc/BiHSCstar.h>
+#include <ompl/geometric/planners/hsc/HSCASE.h>
+#include <ompl/geometric/planners/hsc/HSCASEstar.h>
 
 namespace ompl_interface
 {
@@ -99,8 +103,6 @@ ompl_interface::ModelBasedPlanningContext::ModelBasedPlanningContext(const std::
   , interpolate_(true)
   , hybridize_(true)
 {
-  complete_initial_robot_state_.update();
-
   constraints_library_ = std::make_shared<ConstraintsLibrary>(this);
 }
 
@@ -135,7 +137,53 @@ void ompl_interface::ModelBasedPlanningContext::configure(const ros::NodeHandle&
 
   useConfig();
   if (ompl_simple_setup_->getGoal())
+  {
     ompl_simple_setup_->setup();
+
+    ob::Planner* planner = ompl_simple_setup_->getPlanner().get();
+    std::string planner_name = planner->getName();
+
+    if (planner_name.find("BiHSCstar") != std::string::npos)
+    {
+      safety_certificate_.reset();
+      safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+      og::BiHSCstar* dplanner = dynamic_cast<og::BiHSCstar*>(planner);
+      dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+      dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+      dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+      dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+    }
+    else if (planner_name.find("BiHSC") != std::string::npos)
+    {
+      safety_certificate_.reset();
+      safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+      og::BiHSC* dplanner = dynamic_cast<og::BiHSC*>(planner);
+      dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+      dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+      dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+      dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+    }
+    else if (planner_name.find("HSCASEstar") != std::string::npos)
+    {
+      safety_certificate_.reset();
+      safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+      og::HSCASEstar* dplanner = dynamic_cast<og::HSCASEstar*>(planner);
+      dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+      dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+      dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+      dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+    }
+    else if (planner_name.find("HSCASE") != std::string::npos)
+    {
+      safety_certificate_.reset();
+      safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+      og::HSCASE* dplanner = dynamic_cast<og::HSCASE*>(planner);
+      dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+      dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+      dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+      dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+    }
+  }
 }
 
 void ompl_interface::ModelBasedPlanningContext::setProjectionEvaluator(const std::string& peval)
@@ -266,19 +314,19 @@ void ompl_interface::ModelBasedPlanningContext::useConfig()
   if (it != cfg.end() || max_solution_segment_length_ != 0.0)
   {
     // clang-format off
-    double longest_valid_segment_fraction_config = (it != cfg.end())
-      ? moveit::core::toDouble(it->second)  // value from config file if there
-      : 0.01;  // default value in OMPL.
-    double longest_valid_segment_fraction_final = longest_valid_segment_fraction_config;
-    if (max_solution_segment_length_ > 0.0)
-    {
-      // If this parameter is specified too, take the most conservative of the two variables,
-      // i.e. the one that uses the shorter segment length.
-      longest_valid_segment_fraction_final = std::min(
-          longest_valid_segment_fraction_config,
-          max_solution_segment_length_ / spec_.state_space_->getMaximumExtent()
-      );
-    }
+        double longest_valid_segment_fraction_config = (it != cfg.end())
+            ? moveit::core::toDouble(it->second)  // value from config file if there
+            : 0.01;  // default value in OMPL.
+        double longest_valid_segment_fraction_final = longest_valid_segment_fraction_config;
+        if (max_solution_segment_length_ > 0.0)
+        {
+            // If this parameter is specified too, take the most conservative of the two variables,
+            // i.e. the one that uses the shorter segment length.
+            longest_valid_segment_fraction_final = std::min(
+                    longest_valid_segment_fraction_config,
+                    max_solution_segment_length_ / spec_.state_space_->getMaximumExtent()
+                    );
+        }
     // clang-format on
 
     // convert to string using no locale
@@ -515,7 +563,7 @@ ompl_interface::ModelBasedPlanningContext::constructPlannerTerminationCondition(
     else
       ROS_ERROR_NAMED(LOGNAME, "Missing argument to Iteration termination condition");
   }
-// TODO: remove when ROS Melodic and older are no longer supported
+  // TODO: remove when ROS Melodic and older are no longer supported
 #if OMPL_VERSION_VALUE >= 1005000
   // Terminate if the cost has converged or a timeout occurs.
   // Only useful for anytime/optimizing planners.
@@ -561,7 +609,7 @@ void ompl_interface::ModelBasedPlanningContext::clear()
 {
   if (!multi_query_planning_enabled_)
     ompl_simple_setup_->clear();
-// TODO: remove when ROS Melodic and older are no longer supported
+    // TODO: remove when ROS Melodic and older are no longer supported
 #if OMPL_VERSION_VALUE >= 1005000
   else
   {
@@ -627,6 +675,51 @@ bool ompl_interface::ModelBasedPlanningContext::benchmark(double timeout, unsign
 {
   ompl_benchmark_.clearPlanners();
   ompl_simple_setup_->setup();
+
+  ob::Planner* planner = ompl_simple_setup_->getPlanner().get();
+  std::string planner_name = planner->getName();
+
+  if (planner_name.find("BiHSCstar") != std::string::npos)
+  {
+    safety_certificate_.reset();
+    safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+    og::BiHSCstar* dplanner = dynamic_cast<og::BiHSCstar*>(planner);
+    dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+    dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+    dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+    dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+  }
+  else if (planner_name.find("BiHSC") != std::string::npos)
+  {
+    safety_certificate_.reset();
+    safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+    og::BiHSC* dplanner = dynamic_cast<og::BiHSC*>(planner);
+    dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+    dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+    dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+    dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+  }
+  else if (planner_name.find("HSCASEstar") != std::string::npos)
+  {
+    safety_certificate_.reset();
+    safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+    og::HSCASEstar* dplanner = dynamic_cast<og::HSCASEstar*>(planner);
+    dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+    dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+    dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+    dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+  }
+  else if (planner_name.find("HSCASE") != std::string::npos)
+  {
+    safety_certificate_.reset();
+    safety_certificate_ = std::make_shared<SafetyCertificate>(this);
+    og::HSCASE* dplanner = dynamic_cast<og::HSCASE*>(planner);
+    dplanner->setSafetyCertificateChecker(safety_certificate_->getSafetyCertificateChecker());
+    dplanner->setCollisionCertificateChecker(safety_certificate_->getCollisonCertificateChecker());
+    dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
+    dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
+  }
+
   ompl_benchmark_.addPlanner(ompl_simple_setup_->getPlanner());
   ompl_benchmark_.setExperimentName(getRobotModel()->getName() + "_" + getGroupName() + "_" +
                                     getPlanningScene()->getName() + "_" + name_);

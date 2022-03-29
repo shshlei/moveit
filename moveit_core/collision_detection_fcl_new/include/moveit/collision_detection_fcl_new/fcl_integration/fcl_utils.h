@@ -30,14 +30,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Authors: Levi Armstrong, Shi Shenglei  */
+/* Authors: Shi Shenglei  */
 
 #pragma once
 
 #include <moveit/macros/class_forward.h>
 #include <moveit/collision_detection/collision_common.h>
 #include <moveit/collision_detection/collision_utils.h>
-#include <moveit/collision_detection_fcl/fcl_integration/fcl_collision_object_wrapper.h>
+#include <moveit/collision_detection_fcl_new/fcl_integration/fcl_collision_object_wrapper.h>
 
 #include <fcl/broadphase/broadphase_dynamic_AABB_tree-inl.h>
 #include <fcl/narrowphase/collision-inl.h>

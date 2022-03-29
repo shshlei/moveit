@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ioan Sucan, Shi Shenglei */
 
 #include <moveit/ompl_interface/detail/state_validity_checker.h>
 #include <moveit/ompl_interface/model_based_planning_context.h>
@@ -60,12 +60,16 @@ ompl_interface::StateValidityChecker::StateValidityChecker(const ModelBasedPlann
   collision_request_simple_.group_name = planning_context_->getGroupName();
   collision_request_with_distance_.group_name = planning_context_->getGroupName();
   collision_request_with_cost_.group_name = planning_context_->getGroupName();
+  collision_request_certificate_.group_name = planning_context_->getGroupName();
 
   collision_request_simple_verbose_ = collision_request_simple_;
   collision_request_simple_verbose_.verbose = true;
 
   collision_request_with_distance_verbose_ = collision_request_with_distance_;
   collision_request_with_distance_verbose_.verbose = true;
+
+  collision_request_certificate_.distance = true;
+  collision_request_certificate_.contacts = true;
 }
 
 void ompl_interface::StateValidityChecker::setVerbose(bool flag)
@@ -158,6 +162,7 @@ bool ompl_interface::StateValidityChecker::isValid(const ompl::base::State* stat
   if (!planning_context_->getPlanningScene()->isStateFeasible(*robot_state, verbose))
   {
     dist = 0.0;
+    const_cast<ob::State*>(state)->as<ModelBasedStateSpace::StateType>()->markInvalid(dist);
     return false;
   }
 
@@ -194,4 +199,114 @@ double ompl_interface::StateValidityChecker::clearance(const ompl::base::State* 
   collision_detection::CollisionResult res;
   planning_context_->getPlanningScene()->checkCollision(collision_request_with_distance_, res, *robot_state);
   return res.collision ? 0.0 : (res.distance < 0.0 ? std::numeric_limits<double>::infinity() : res.distance);
+}
+
+bool ompl_interface::StateValidityChecker::isValid(const ompl::base::State* state,
+                                                   ompl::base::ContactResultVector& contactVector, double& dist) const
+{
+  if (!si_->satisfiesBounds(state))
+  {
+    dist = 0.0;
+    const_cast<ob::State*>(state)->as<ModelBasedStateSpace::StateType>()->markInvalid(0.0);
+    return false;
+  }
+
+  moveit::core::RobotState* robot_state = tss_.getStateStorage();
+  planning_context_->getOMPLStateSpace()->copyToRobotState(*robot_state, state);
+
+  // check path constraints
+  const kinematic_constraints::KinematicConstraintSetPtr& kset = planning_context_->getPathConstraints();
+  if (kset)
+  {
+    kinematic_constraints::ConstraintEvaluationResult cer = kset->decide(*robot_state);
+    if (!cer.satisfied)
+    {
+      dist = cer.distance;
+      const_cast<ob::State*>(state)->as<ModelBasedStateSpace::StateType>()->markInvalid(dist);
+      return false;
+    }
+  }
+
+  // check feasibility
+  if (!planning_context_->getPlanningScene()->isStateFeasible(*robot_state))
+  {
+    dist = 0.0;
+    const_cast<ob::State*>(state)->as<ModelBasedStateSpace::StateType>()->markInvalid(dist);
+    return false;
+  }
+
+  // check collision avoidance
+  bool collision;
+  dist = clearance(state, contactVector, collision);
+
+  return !collision;
+}
+
+void ompl_interface::StateValidityChecker::clearance(const ompl::base::State* state,
+                                                     ompl::base::ContactResultVector& contactVector) const
+{
+  bool collision;
+
+  clearance(state, contactVector, collision);
+
+  (void)(collision);
+}
+
+double ompl_interface::StateValidityChecker::clearance(const ompl::base::State* state,
+                                                       ompl::base::ContactResultVector& contactVector,
+                                                       bool& collision) const
+{
+  moveit::core::RobotState* robot_state = tss_.getStateStorage();
+  planning_context_->getOMPLStateSpace()->copyToRobotState(*robot_state, state);
+
+  collision_detection::CollisionResult res;
+  planning_context_->getPlanningScene()->checkCollision(collision_request_certificate_, res, *robot_state);
+
+  contactVector.clear();
+
+  for (const auto& mv : res.contacts)
+  {
+    for (const auto& contact : mv.second)
+    {
+      if (contact.depth < 0.0)
+      {
+        ompl::base::ContactResult contact_result;
+
+        contact_result.distance = contact.depth;
+        contact_result.normal = contact.normal;
+        contact_result.nearest_points[0] = contact.nearest_points[0];
+        contact_result.nearest_points[1] = contact.nearest_points[1];
+        contact_result.nearest_points_local[0] = contact.nearest_points_local[0];
+        contact_result.nearest_points_local[1] = contact.nearest_points_local[1];
+        contact_result.nearest_points_local2[0] = contact.nearest_points_local2[0];
+        contact_result.nearest_points_local2[1] = contact.nearest_points_local2[1];
+        contact_result.transform[0] = contact.transform[0];
+        contact_result.transform[1] = contact.transform[1];
+        contact_result.link_names[0] = contact.body_name_1;
+        contact_result.link_names[1] = contact.body_name_2;
+        contact_result.shape_id[0] = contact.shape_id[0];
+        contact_result.shape_id[1] = contact.shape_id[1];
+
+        if (contact.body_type_1 == collision_detection::BodyType::WORLD_OBJECT)
+          contact_result.type_id[0] = 0;
+        else if (contact.body_type_1 == collision_detection::BodyType::ROBOT_LINK)
+          contact_result.type_id[0] = 1;
+        else if (contact.body_type_1 == collision_detection::BodyType::ROBOT_ATTACHED)
+          contact_result.type_id[0] = 2;
+
+        if (contact.body_type_2 == collision_detection::BodyType::WORLD_OBJECT)
+          contact_result.type_id[1] = 0;
+        else if (contact.body_type_2 == collision_detection::BodyType::ROBOT_LINK)
+          contact_result.type_id[1] = 1;
+        else if (contact.body_type_2 == collision_detection::BodyType::ROBOT_ATTACHED)
+          contact_result.type_id[1] = 2;
+
+        contactVector.push_back(contact_result);
+      }
+    }
+  }
+
+  collision = res.collision;
+
+  return res.distance;
 }

@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Ioan Sucan */
+/* Author: Ioan Sucan, Shi Shenglei */
 
 #pragma once
 
@@ -45,7 +45,7 @@ namespace ompl_interface
 class ModelBasedPlanningContext;
 
 /** @class StateValidityChecker
-    @brief An interface for a OMPL state validity checker*/
+  @brief An interface for a OMPL state validity checker*/
 class StateValidityChecker : public ompl::base::StateValidityChecker
 {
 public:
@@ -75,6 +75,15 @@ public:
 
   void setVerbose(bool flag);
 
+  /** \brief Return true if the state \e state is valid. In addition, set \e contact information. */
+  bool isValid(const ompl::base::State* state, ompl::base::ContactResultVector& contactVector,
+               double& dist) const override;
+
+  void clearance(const ompl::base::State* state, ompl::base::ContactResultVector& contactVector) const override;
+
+  double clearance(const ompl::base::State* state, ompl::base::ContactResultVector& contactVector,
+                   bool& collision) const;
+
 protected:
   const ModelBasedPlanningContext* planning_context_;
   std::string group_name_;
@@ -85,6 +94,9 @@ protected:
   collision_detection::CollisionRequest collision_request_with_distance_verbose_;
 
   collision_detection::CollisionRequest collision_request_with_cost_;
+
+  collision_detection::CollisionRequest collision_request_certificate_;
+
   bool verbose_;
 };
 }  // namespace ompl_interface

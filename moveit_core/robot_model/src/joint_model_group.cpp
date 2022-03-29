@@ -280,6 +280,21 @@ void JointModelGroup::getSubgroups(std::vector<const JointModelGroup*>& sub_grou
     sub_groups[i] = parent_model_->getJointModelGroup(subgroup_names_[i]);
 }
 
+void JointModelGroup::setSubspacegroupNames(const std::vector<std::string>& subspacegroups)
+{
+  subspacegroup_names_ = subspacegroups;
+  subspacegroup_names_set_.clear();
+  for (const std::string& subspacegroup_name : subspacegroup_names_)
+    subspacegroup_names_set_.insert(subspacegroup_name);
+}
+
+void JointModelGroup::getSubspacegroups(std::vector<const JointModelGroup*>& subspace_groups) const
+{
+  subspace_groups.resize(subspacegroup_names_.size());
+  for (std::size_t i = 0; i < subspacegroup_names_.size(); ++i)
+    subspace_groups[i] = parent_model_->getJointModelGroup(subspacegroup_names_[i]);
+}
+
 bool JointModelGroup::hasJointModel(const std::string& joint) const
 {
   return joint_model_map_.find(joint) != joint_model_map_.end();

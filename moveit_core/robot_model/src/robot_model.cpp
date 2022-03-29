@@ -776,6 +776,7 @@ bool RobotModel::addJointModelGroup(const srdf::Model::Group& gc)
 
   JointModelGroup* jmg = new JointModelGroup(gc.name_, gc, joints, this);
   joint_model_group_map_[gc.name_] = jmg;
+  jmg->setSubspacegroupNames(gc.subgroups_);
 
   return true;
 }

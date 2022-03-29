@@ -66,6 +66,14 @@
 #include <ompl/geometric/planners/prm/LazyPRMstar.h>
 #include <ompl/geometric/planners/prm/SPARS.h>
 #include <ompl/geometric/planners/prm/SPARStwo.h>
+#include <ompl/geometric/planners/rrt/RRTBispace.h>
+#include <ompl/geometric/planners/rrt/RRTBispacestar.h>
+#include <ompl/geometric/planners/ase/BiASE.h>
+#include <ompl/geometric/planners/ase/BiASEstar.h>
+#include <ompl/geometric/planners/hsc/BiHSC.h>
+#include <ompl/geometric/planners/hsc/BiHSCstar.h>
+#include <ompl/geometric/planners/hsc/HSCASE.h>
+#include <ompl/geometric/planners/hsc/HSCASEstar.h>
 
 #include <moveit/ompl_interface/parameterization/joint_space/joint_model_state_space_factory.h>
 #include <moveit/ompl_interface/parameterization/joint_space/joint_model_state_space.h>
@@ -290,6 +298,15 @@ void ompl_interface::PlanningContextManager::registerDefaultPlanners()
   registerPlannerAllocatorHelper<og::SPARStwo>("geometric::SPARStwo");
   registerPlannerAllocatorHelper<og::STRIDE>("geometric::STRIDE");
   registerPlannerAllocatorHelper<og::TRRT>("geometric::TRRT");
+
+  registerPlannerAllocatorHelper<og::RRTBispace>("geometric::RRTBispace");
+  registerPlannerAllocatorHelper<og::RRTBispacestar>("geometric::RRTBispacestar");
+  registerPlannerAllocatorHelper<og::BiASE>("geometric::BiASE");
+  registerPlannerAllocatorHelper<og::BiASEstar>("geometric::BiASEstar");
+  registerPlannerAllocatorHelper<og::BiHSC>("geometric::BiHSC");
+  registerPlannerAllocatorHelper<og::BiHSCstar>("geometric::BiHSCstar");
+  registerPlannerAllocatorHelper<og::HSCASE>("geometric::HSCASE");
+  registerPlannerAllocatorHelper<og::HSCASEstar>("geometric::HSCASEstar");
 }
 
 void ompl_interface::PlanningContextManager::registerDefaultStateSpaces()

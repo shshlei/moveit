@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Authors: Levi Armstrong, Shi Shenglei  */
+/* Authors: Shi Shenglei  */
 
 #pragma once
 

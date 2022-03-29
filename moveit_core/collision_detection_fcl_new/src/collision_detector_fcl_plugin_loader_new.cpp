@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Bryce Willey */
+/* Author: Shi Shenglei */
 
 #include <moveit/collision_detection_fcl_new/collision_detector_fcl_plugin_loader_new.h>
 #include <pluginlib/class_list_macros.h>

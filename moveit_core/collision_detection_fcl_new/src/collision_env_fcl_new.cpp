@@ -43,8 +43,8 @@ namespace collision_detection
 {
 namespace
 {
-static const std::string NAME = "FCL";
-constexpr char LOGNAME[] = "collision_detection.fcl";
+static const std::string NAME = "FCLNew";
+constexpr char LOGNAME[] = "collision_detection.fcl_new";
 }  // namespace
 
 CollisionEnvFCLNew::CollisionEnvFCLNew(const moveit::core::RobotModelConstPtr& model, double padding, double scale)

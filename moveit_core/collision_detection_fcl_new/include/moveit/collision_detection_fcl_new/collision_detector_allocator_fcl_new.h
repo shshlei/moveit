@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-/* Author: Acorn Pooley, Ioan Sucan, Shi Shenglei */
+/* Author: Shi Shenglei */
 
 #pragma once
 
