@@ -269,10 +269,20 @@ void RobotTrajectory::getRobotTrajectoryMsg(moveit_msgs::RobotTrajectory& trajec
 
   static const ros::Duration ZERO_DURATION(0.0);
   double total_time = 0.0;
+  bool valid_time = true; 
+  double duration = getDuration();
+  int64_t sec64 = static_cast<int64_t>(floor(duration));
+  if (sec64 < std::numeric_limits<int32_t>::min() || sec64 > std::numeric_limits<int32_t>::max())
+    valid_time = false;
   for (std::size_t i = 0; i < waypoints_.size(); ++i)
   {
-    if (duration_from_previous_.size() > i)
-      total_time += duration_from_previous_[i];
+    if (valid_time)
+    {
+      if (duration_from_previous_.size() > i)
+        total_time += duration_from_previous_[i];
+      else 
+        valid_time = false;
+    }
 
     if (!onedof.empty())
     {
@@ -304,7 +314,7 @@ void RobotTrajectory::getRobotTrajectoryMsg(moveit_msgs::RobotTrajectory& trajec
       if (trajectory.joint_trajectory.points[i].effort.size() != onedof.size())
         trajectory.joint_trajectory.points[i].effort.clear();
 
-      if (duration_from_previous_.size() > i)
+      if (valid_time)
         trajectory.joint_trajectory.points[i].time_from_start = ros::Duration(total_time);
       else
         trajectory.joint_trajectory.points[i].time_from_start = ZERO_DURATION;
@@ -346,7 +356,7 @@ void RobotTrajectory::getRobotTrajectoryMsg(moveit_msgs::RobotTrajectory& trajec
           trajectory.multi_dof_joint_trajectory.points[i].velocities.push_back(point_velocity);
         }
       }
-      if (duration_from_previous_.size() > i)
+      if (valid_time)
         trajectory.multi_dof_joint_trajectory.points[i].time_from_start = ros::Duration(total_time);
       else
         trajectory.multi_dof_joint_trajectory.points[i].time_from_start = ZERO_DURATION;

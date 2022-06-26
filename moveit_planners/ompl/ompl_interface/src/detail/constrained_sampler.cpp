@@ -68,8 +68,8 @@ bool ompl_interface::ConstrainedSampler::sampleC(ob::State* state)
   if (constraint_sampler_->sample(work_state_, planning_context_->getCompleteInitialRobotState(),
                                   planning_context_->getMaximumStateSamplingAttempts()))
   {
-    planning_context_->getOMPLStateSpace()->copyToOMPLState(state, work_state_);
-    if (space_->satisfiesBounds(state))
+    planning_context_->getOMPLStateSpace()->copyToOMPLState(state, work_state_); // OMPL state's bounds have been enforced 
+    if (work_state_.satisfiesBounds(planning_context_->getJointModelGroup())) 
     {
       ++constrained_success_;
       return true;

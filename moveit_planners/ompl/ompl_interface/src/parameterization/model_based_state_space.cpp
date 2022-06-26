@@ -106,13 +106,12 @@ void ompl_interface::GroupBasedStateSpace<StateSpace>::copyToRobotStateWithoutUp
     moveit::core::RobotState& rstate, const ompl::base::State* state) const
 {
   if (StateSpace::getType() == ompl::base::StateSpaceType::STATE_SPACE_REAL_VECTOR)
-    rstate.setJointGroupPositions(spec_.joint_model_group_,
-                                  state->as<ompl::base::RealVectorStateSpace::StateType>()->values);
+    rstate.setJointGroupPositions(spec_.joint_model_group_, StateSpace::getValueAddressAtIndex(const_cast<ompl::base::State *>(state), 0));
   else
   {
-    std::vector<double> reals;
-    StateSpace::copyToReals(reals, state);
-    rstate.setJointGroupPositions(spec_.joint_model_group_, reals);
+    std::vector<double> values;
+    StateSpace::copyToReals(values, state);
+    rstate.setJointGroupPositions(spec_.joint_model_group_, &values[0]);
   }
 }
 
@@ -121,15 +120,15 @@ void ompl_interface::GroupBasedStateSpace<StateSpace>::copyToOMPLState(ompl::bas
                                                                        const moveit::core::RobotState& rstate) const
 {
   if (StateSpace::getType() == ompl::base::StateSpaceType::STATE_SPACE_REAL_VECTOR)
-    rstate.copyJointGroupPositions(spec_.joint_model_group_,
-                                   state->as<ompl::base::RealVectorStateSpace::StateType>()->values);
+    rstate.copyJointGroupPositions(spec_.joint_model_group_, StateSpace::getValueAddressAtIndex(state, 0));
   else
   {
-    std::vector<double> reals;
-    rstate.copyJointGroupPositions(spec_.joint_model_group_, reals);
-    StateSpace::copyFromReals(state, reals);
+    std::vector<double> values;
+    values.resize(spec_.joint_model_group_->getVariableCount());
+    rstate.copyJointGroupPositions(spec_.joint_model_group_, &values[0]);
+    StateSpace::copyFromReals(state, values);
     StateSpace::enforceBounds(state);
-  }
+  }  
 }
 
 // template<typename StateSpace>
@@ -249,7 +248,18 @@ ompl_interface::ModelBasedStateSpace::ModelBasedStateSpace(ModelBasedStateSpaceS
   {
     GroupBasedStateSpaceSpecification sub_spec(spec_.joint_model_group_);
     sub_spec.joint_bounds_ = spec_.joint_bounds_;
-    addSubspace(std::make_shared<GroupBasedStateSpace<ompl::base::RealVectorStateSpace>>(sub_spec), 1.0);
+    if (joint_model_vector_.size() > 1)
+      addSubspace(std::make_shared<GroupBasedStateSpace<ompl::base::RealVectorStateSpace>>(sub_spec), 1.0);
+    else 
+    {
+      moveit::core::JointModel::JointType type = joint_model_vector_[0]->getType();
+      if (type == moveit::core::JointModel::PLANAR)
+        addSubspace(std::make_shared<GroupBasedStateSpace<ompl::base::SE2StateSpace>>(sub_spec), 1.0);
+      else if (type == moveit::core::JointModel::FLOATING)
+        addSubspace(std::make_shared<GroupBasedStateSpace<ompl::base::SE3StateSpace>>(sub_spec), 1.0);
+      else 
+        addSubspace(std::make_shared<GroupBasedStateSpace<ompl::base::RealVectorStateSpace>>(sub_spec), 1.0);
+    }
   }
   else
   {

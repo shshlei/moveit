@@ -289,7 +289,7 @@ bool planning_pipeline::PlanningPipeline::generatePlan(const planning_scene::Pla
         }
         if (problem)
         {
-          if (index.size() == 1 && index[0] == 0)  // ignore cases when the robot starts at invalid location
+          if (index.size() == 1 && (index[0] == 0 || index[0] == state_count - 1))  // ignore cases when the robot starts or ends at invalid location
             ROS_DEBUG("It appears the robot is starting at an invalid state, but that is ok.");
           else
           {

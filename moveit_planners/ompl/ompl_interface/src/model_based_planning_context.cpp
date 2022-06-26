@@ -73,8 +73,8 @@
 #include <ompl/geometric/planners/prm/LazyPRM.h>
 #include <ompl/geometric/planners/hsc/BiHSC.h>
 #include <ompl/geometric/planners/hsc/BiHSCstar.h>
-#include <ompl/geometric/planners/hsc/HSCASE.h>
-#include <ompl/geometric/planners/hsc/HSCASEstar.h>
+//#include <ompl/geometric/planners/hsc/HSCASE.h>
+//#include <ompl/geometric/planners/hsc/HSCASEstar.h>
 
 namespace ompl_interface
 {
@@ -163,6 +163,7 @@ void ompl_interface::ModelBasedPlanningContext::configure(const ros::NodeHandle&
       dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
       dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
     }
+    /*
     else if (planner_name.find("HSCASEstar") != std::string::npos)
     {
       safety_certificate_.reset();
@@ -183,6 +184,7 @@ void ompl_interface::ModelBasedPlanningContext::configure(const ros::NodeHandle&
       dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
       dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
     }
+    */
   }
 }
 
@@ -356,6 +358,12 @@ void ompl_interface::ModelBasedPlanningContext::useConfig()
     {
       objective =
           std::make_shared<ompl::base::PathLengthOptimizationObjective>(ompl_simple_setup_->getSpaceInformation());
+      it = cfg.find("optimization_cost");
+      if (it != cfg.end())
+      {
+          objective->setCostThreshold(ompl::base::Cost(moveit::core::toDouble(it->second)));
+          cfg.erase(it);
+      }
     }
     else if (optimizer == "MinimaxObjective")
     {
@@ -699,6 +707,7 @@ bool ompl_interface::ModelBasedPlanningContext::benchmark(double timeout, unsign
     dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
     dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
   }
+  /*
   else if (planner_name.find("HSCASEstar") != std::string::npos)
   {
     safety_certificate_.reset();
@@ -719,6 +728,7 @@ bool ompl_interface::ModelBasedPlanningContext::benchmark(double timeout, unsign
     dplanner->setDistanceCertificate(safety_certificate_->getDistanceCertificate());
     dplanner->setCertificateDim(safety_certificate_->getCertificateDim());
   }
+  */
 
   ompl_benchmark_.addPlanner(ompl_simple_setup_->getPlanner());
   ompl_benchmark_.setExperimentName(getRobotModel()->getName() + "_" + getGroupName() + "_" +
